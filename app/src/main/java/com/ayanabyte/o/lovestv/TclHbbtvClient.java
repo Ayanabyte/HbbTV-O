@@ -45,9 +45,13 @@ final class TclHbbtvClient {
         if(closed||starting||ready)return;
         starting=true;
         try {
+            boolean webkitOk=VendorWebkitAccess.prepare(activity,this::report);
+            report("Preparación TCL WebKit terminada, visible="+webkitOk);
             report("HbbtvServer.getInstance → init");
             engine=singleton("com.tcl.hbbtv.HbbtvServer");
-            check(invoke(engine,"init"));
+            Object initResult=invoke(engine,"init");
+            report("HbbtvServer.init respuesta="+initResult);
+            check(initResult);
             prepareKeys();
             registerEvents();
             browser=singleton("com.tcl.tbrowser.Tbrowser");
@@ -68,7 +72,7 @@ final class TclHbbtvClient {
             browser.getClass().getMethod("initTbrowser",Context.class,ViewGroup.class,boolean.class)
                 .invoke(browser,activity,layer,false);
             ui.postDelayed(()->{
-                if(!closed&&starting&&!ready)fail("Sin respuesta del navegador en 25 s",null);
+                if(!closed&&starting&&!ready)fail("Sin respuesta del navegador en 25 s; "+snapshot(),null);
             },25000);
         } catch(Throwable error) {fail("Error arrancando motor HbbTV TCL",error);}
     }
