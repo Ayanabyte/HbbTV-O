@@ -13,7 +13,7 @@ import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
     private lateinit var tv: TvView
-    private lateinit var overlay: FrameLayout
+    private lateinit var browserLayer: FrameLayout
     private val design by lazy { assets.open("lovestv.js").bufferedReader().use { it.readText() } }
     private var browser: BroadcastBrowser? = null
     private var channels = emptyList<TvChannelRepository.Channel>()
@@ -29,10 +29,10 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         tv = TvView(this)
-        overlay = FrameLayout(this)
+        browserLayer = FrameLayout(this)
         setContentView(FrameLayout(this).apply {
             addView(tv)
-            addView(overlay)
+            addView(browserLayer)
         })
         if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(permission), 1)
@@ -96,7 +96,7 @@ class MainActivity : Activity() {
     }
 
     private fun startBrowser() {
-        browser = BroadcastBrowser(this, overlay, design) { message ->
+        browser = BroadcastBrowser(this, browserLayer, design) { message ->
             interactive = false
             notice(message)
         }.also { it.start() }
