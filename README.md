@@ -71,3 +71,11 @@ El registro original de Channel+ (20:57:47–20:57:59) demuestra que su ejecuci�
 HbbTV O! 0.1.8 reprodujo el nombre `com.tcl.tv` de proceso pero no comprobó su ABI real. 0.1.9 añade `android:use32bitAbi="true"` como intento de selección de zygote de 32 bits, registra `Process.is64Bit()`, ABIs soportados y `nativeLibraryDir` tanto al abrir como en el preflight. **No se asume que el atributo haya surtido efecto**: el registro de proceso en el dispositivo es la prueba definitiva. Si sigue en 64 bits, hace falta una variante APK con solo librerías `armeabi-v7a` empaquetadas y firmadas, como la variante hbbtv32 de Channel+.
 
 El registro OEM de Channel+ no se replica sin conocer un procedimiento verificable y autorizado. Ni un `start()=0` ni `Process.is64Bit()=false` demuestran por sí solos que LOVEStv esté funcionando.
+
+## Prueba 0.1.10 — mantener la sesión DVB sin reset
+
+Inspección del **APK real** Channel+ LOVEStv 1.45 (`classes.dex`, `ProbeActivity` y `ExperimentalAuthorization`): su flujo normal sintoniza el `TvView`, espera a que haya vídeo, registra TVSDK, inicia `HbbtvServer` y `Tbrowser` con la Activity real, y conserva la sesión DVB. La acción `retune()` existe como experimento de usuario independiente y no es un paso obligatorio tras `start`.
+
+HbbTV O! 0.1.9, en cambio, ejecutaba `tvView.reset()` y una segunda `tune()` ~1,25 s después de `HbbtvServer.start()`, incluso si el canal ya reproducía. En 0.1.10 se quita exclusivamente ese reset/tune automático y se mantiene el mismo `TvView` y señal de TDT mientras se monitoriza el estado HbbTV durante 30 s. El cambio reduce una posible desconexión de estado PMT/AIT entre motor y sintonizador, sin concluir que resuelva el acceso nativo.
+
+La descompilación verificó además que `ExperimentalAuthorization.begin()` en la APK de referencia calcula primero la huella SHA-256 de la APK oficial TCL, busca una cadena interna en el DEX del fabricante y la entrega a `TTvFunctionManager.systemAuthorized(String)`; esa llamada devuelve `true` en los registros originales. HbbTV O! no recupera ni reutiliza credenciales OEM. La ausencia del registro sigue siendo una diferencia y puede impedir la integración aun conservando el `TvView`.

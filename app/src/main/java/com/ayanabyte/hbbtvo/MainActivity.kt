@@ -79,7 +79,7 @@ class MainActivity : Activity() {
             setBackgroundColor(0xD9000000.toInt())
         }
         top.addView(TextView(this).apply {
-            text = "HbbTV O!  ·  0.1.9"
+            text = "HbbTV O!  ·  0.1.10"
             textSize = 23f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
@@ -234,18 +234,9 @@ class MainActivity : Activity() {
                 note("TVSDK: iniciando motor TCL con modo televisión en directo")
                 bridge.initialize(videoAvailable, autoStartOnBrowser = true) {
                     if (generation != bootGeneration || isFinishing || isDestroyed) return@initialize
-                    note("HbbTV: start invocado; preparando segunda sintonización")
+                    note("HbbTV: start invocado; conservando el TvView sintonizado sin reset ni retune (paridad Channel+ 1.45)")
+                    note("DVB: canal=${channel.name} · id=${channel.id} · input=${channel.inputId}; videoAvailable=$videoAvailable")
                     monitorHbbtvState(generation, 0, null)
-                    ui.postDelayed({
-                        if (!isFinishing && !isDestroyed && generation == bootGeneration) {
-                            val position = channels.indexOfFirst { it.id == channel.id }
-                            if (position >= 0) {
-                                note("DVB: reset de sesión y resintonización con HbbTV ya iniciado")
-                                tvView.reset()
-                                tune(position)
-                            } else note("DVB: canal original ya no figura en el listado")
-                        }
-                    }, 1250L)
                 }
             }
         }
