@@ -76,7 +76,7 @@ class MainActivity : Activity() {
             setBackgroundColor(0xD9000000.toInt())
         }
         top.addView(TextView(this).apply {
-            text = "HbbTV O!  ·  0.1.3"
+            text = "HbbTV O!  ·  0.1.4"
             textSize = 23f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
@@ -124,6 +124,8 @@ class MainActivity : Activity() {
         addAction("Canal siguiente") { changeChannel(+1) }
         addAction("Analizar TCL") { bridge.inspect() }
         addAction("Contexto DVB") { inspectDvbChannel() }
+        addAction("HbbTV ON") { enableTclHbbtv() }
+        addAction("Gestor ON") { enableTclManager() }
         addAction("Iniciar motor") { bridge.initialize(videoAvailable) }
         addAction("Start HbbTV") { bridge.start() }
         addAction("Azul") { bridge.emitBlue() }
@@ -185,6 +187,22 @@ class MainActivity : Activity() {
         note("Iniciando diagnóstico de identidad del canal…")
         thread(name = "hbbtvo-dvb-inspection") {
             val lines = TclChannelInspector(this).inspect(selected)
+            ui.post { lines.forEach(::note) }
+        }
+    }
+
+    private fun enableTclHbbtv() {
+        note("Solicitando HbbTV ON a TCL…")
+        thread(name = "hbbtvo-hbbtv-switch") {
+            val lines = TclChannelInspector(this).enableHbbtvFlag()
+            ui.post { lines.forEach(::note) }
+        }
+    }
+
+    private fun enableTclManager() {
+        note("Solicitando Gestor HbbTV ON a TCL…")
+        thread(name = "hbbtvo-hbbtv-manager") {
+            val lines = TclChannelInspector(this).enableManager()
             ui.post { lines.forEach(::note) }
         }
     }

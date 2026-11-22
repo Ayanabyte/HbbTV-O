@@ -66,7 +66,57 @@ class TclChannelInspector(private val context: Context) {
             report += "TCL HbbtvServer.getState()=$state"
         }.onFailure { report += "TCL motor: ${rootCause(it)}" }
 
+        runCatching {
+            val cls = Class.forName("tvos.tv.hbbtv.THbbtvManager", true, context.classLoader)
+            val mgr = cls.getMethod("getInstance", Context::class.java).invoke(null, context)
+            report += "TCL THbbtvManager.getEnable()=${cls.getMethod("getEnable").invoke(mgr)}"
+            report += "TCL THbbtvManager.getState()=${cls.getMethod("getState").invoke(mgr)}"
+        }.onFailure { report += "TCL gestor: ${rootCause(it)}" }
+
         report += "== Fin diagnóstico DVB =="
+        return report
+    }
+
+    /**
+     * Explicit user action: request HbbTV enable through the vendor's API.
+     * A successful reflection call is not proof that native TV permissions were granted.
+     */
+    fun enableHbbtvFlag(): List<String> {
+        val report = mutableListOf<String>()
+        runCatching {
+            val cls = Class.forName("com.tcl.tvmanager.TTvFunctionManager", true, context.classLoader)
+            val mgr = cls.getMethod("getInstance", Context::class.java).invoke(null, context)
+            val getter = cls.getMethod("isHbbtvOn")
+            val before = getter.invoke(mgr)
+            report += "HbbTV ON: antes=$before"
+            if (before != true) {
+                cls.getMethod("setHbbtvOn", Boolean::class.javaPrimitiveType).invoke(mgr, true)
+                report += "HbbTV ON: llamada setHbbtvOn(true) enviada"
+            }
+            report += "HbbTV ON: después=${getter.invoke(mgr)}"
+        }.onFailure { report += "HbbTV ON: rechazado/error ${rootCause(it)}" }
+        return report
+    }
+
+    /**
+     * Separate user-triggered experiment: native TCL HbbTV manager enable.
+     * Kept separate from setHbbtvOn to distinguish which layer changes.
+     */
+    fun enableManager(): List<String> {
+        val report = mutableListOf<String>()
+        runCatching {
+            val cls = Class.forName("tvos.tv.hbbtv.THbbtvManager", true, context.classLoader)
+            val mgr = cls.getMethod("getInstance", Context::class.java).invoke(null, context)
+            val getter = cls.getMethod("getEnable")
+            val before = getter.invoke(mgr)
+            report += "Gestor ON: antes=$before"
+            if (before != true) {
+                val result = cls.getMethod("setEnable", Boolean::class.javaPrimitiveType).invoke(mgr, true)
+                report += "Gestor ON: setEnable(true) devolvió $result"
+            }
+            report += "Gestor ON: después=${getter.invoke(mgr)}"
+            report += "Gestor ON: estado=${cls.getMethod("getState").invoke(mgr)}"
+        }.onFailure { report += "Gestor ON: rechazado/error ${rootCause(it)}" }
         return report
     }
 
