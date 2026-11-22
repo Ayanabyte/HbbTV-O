@@ -1,177 +1,222 @@
 package com.ayanabyte.hbbtvo
 
 import android.app.Activity
-import android.app.AlertDialog
+import android.content.ActivityNotFoundException
+import android.content.ComponentName
+import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.tv.TvView
+import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
-import android.view.KeyEvent
+import android.os.Process
 import android.view.View
-import android.widget.FrameLayout
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
-import kotlin.concurrent.thread
+import java.io.File
+import java.text.DateFormat
+import java.util.Date
 
+/** Diagnostic companion for checking the public handoff to TCL's installed TV application. */
 class MainActivity : Activity() {
-    private lateinit var tv: TvView
-    private lateinit var browserLayer: FrameLayout
-    private val design by lazy { assets.open("lovestv.js").bufferedReader().use { it.readText() } }
-    private var browser: BroadcastBrowser? = null
-    private var channels = emptyList<TvChannelRepository.Channel>()
-    private var index = 0
-    private var hasVideo = false
-    private var browserStatus = ""
-    private var interactive = false
-    private var active = false
-    private var loadId = 0
-    private val handled = mutableSetOf<Int>()
-    private val permission = "android.permission.READ_TV_LISTINGS"
+    private lateinit var reportText: TextView
+    private var report = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-        tv = TvView(this)
-        browserLayer = FrameLayout(this)
-        setContentView(FrameLayout(this).apply {
-            addView(tv)
-            addView(browserLayer)
+        window.statusBarColor = Color.rgb(15, 18, 24)
+        window.navigationBarColor = Color.rgb(15, 18, 24)
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        buildScreen()
+        runAccessCheck()
+    }
+
+    private fun buildScreen() {
+        val background = Color.rgb(15, 18, 24)
+        val white = Color.rgb(245, 247, 250)
+        val muted = Color.rgb(190, 198, 210)
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(34), dp(22), dp(34), dp(28))
+            setBackgroundColor(background)
+        }
+        page.addView(TextView(this).apply {
+            text = "HbbTV O! · Pruebas del televisor"
+            textSize = 29f
+            setTextColor(white)
         })
-        if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED)
-            requestPermissions(arrayOf(permission), 1)
-    }
-
-    override fun onStart() {
-        super.onStart()
-        active = true
-        if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) loadChannels()
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, results: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, results)
-        if (requestCode == 1 && active) loadChannels()
-    }
-
-    private fun loadChannels() {
-        val request = ++loadId
-        thread {
-            val result = runCatching { TvChannelRepository(this).terrestrialChannels() }
-            runOnUiThread {
-                if (!active || request != loadId) return@runOnUiThread
-                result.onSuccess { entries ->
-                    channels = entries
-                    if (entries.isEmpty()) notice("No hay canales TDT disponibles")
-                    else {
-                        val last = getPreferences(0).getLong("channel", -1)
-                        val selected = entries.indexOfFirst { it.id == last }
-                        tune(if (selected >= 0) selected else entries.indexOfFirst { it.name.equals("Antena 3", true) }.coerceAtLeast(0))
-                    }
-                }.onFailure { notice("No se pudo leer la lista TDT. Comprueba el permiso de canales.") }
-            }
-        }
-    }
-
-    private fun tune(next: Int) {
-        val channel = channels[next]
-        stopBrowser()
-        hasVideo = false
-        tv.reset()
-        index = next
-        tv.setCallback(object : TvView.TvInputCallback() {
-            override fun onVideoAvailable(inputId: String) {
-                if (!active || inputId != channel.inputId || channels.getOrNull(index)?.id != channel.id) return
-                hasVideo = true
-                if (browser == null) startBrowser()
-            }
-            override fun onVideoUnavailable(inputId: String, reason: Int) {
-                hasVideo = false
-                stopBrowser()
-            }
-            override fun onDisconnected(inputId: String) {
-                hasVideo = false
-                stopBrowser()
-                notice("Sintonizador desconectado")
-            }
+        page.addView(TextView(this).apply {
+            text = "Comprueba el acceso a la TV TCL. Para probar LOVEStv real, abre la aplicación original, elige un canal compatible y pulsa Azul en el mando."
+            textSize = 17f
+            setTextColor(muted)
+            setPadding(0, dp(10), 0, dp(14))
         })
-        tv.tune(channel.inputId, channel.uri)
-        getPreferences(0).edit().putLong("channel", channel.id).apply()
-        notice(channel.name)
+
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        actions.addView(action("1 · Comprobar acceso") { runAccessCheck() }, weight())
+        actions.addView(action("2 · Prueba del dispositivo") { runDeviceCheck() }, weight())
+        actions.addView(action("Ver informe") { showReport() }, weight())
+        page.addView(actions)
+
+        page.addView(action("Abrir TV TCL · elegir canal") { openTclTv() }, LinearLayout.LayoutParams(-1, dp(60)).apply {
+            topMargin = dp(12)
+        })
+        page.addView(TextView(this).apply {
+            text = "Se abrirá la app de TV original. La navegación HbbTV y el botón azul los gestiona el televisor. Vuelve a HbbTV O! desde Aplicaciones para consultar el informe."
+            textSize = 16f
+            setTextColor(muted)
+            setPadding(0, dp(10), 0, dp(12))
+        })
+        val resultActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        resultActions.addView(action("LOVEStv se abrió") { recordManualResult(true) }, weight())
+        resultActions.addView(action("LOVEStv no se abrió") { recordManualResult(false) }, weight())
+        page.addView(resultActions)
+
+        val reportScroll = ScrollView(this).apply {
+            isFocusable = false
+            isFocusableInTouchMode = false
+        }
+        reportText = TextView(this).apply {
+            textSize = 13f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(Color.rgb(214, 220, 230))
+            setPadding(0, dp(6), 0, dp(12))
+        }
+        reportScroll.addView(reportText)
+        page.addView(reportScroll, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        val footer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        footer.addView(action("Compartir informe") { shareReport() }, weight())
+        footer.addView(action("Guardar informe") { saveReport() }, weight())
+        page.addView(footer)
+
+        setContentView(page)
     }
 
-    private fun startBrowser() {
-        browserStatus = ""
-        browser = BroadcastBrowser(this, browserLayer, design, { message ->
-            browserStatus = message
-            interactive = false
-            notice(message)
-        }, { accepted ->
-            interactive = accepted
-            android.util.Log.i("HbbTVO", "Azul procesado por TCL: $accepted")
-            if (!accepted && browser?.isClosed == false) notice("El servicio HbbTV del canal ha rechazado la tecla azul")
-        }).also { it.start() }
+    private fun action(label: String, run: () -> Unit): Button = Button(this).apply {
+        text = label
+        textSize = 16f
+        isFocusable = true
+        isFocusableInTouchMode = true
+        setOnClickListener { run() }
     }
 
-    private fun stopBrowser() {
-        browser?.close()
-        browser = null
-        interactive = false
+    private fun weight() = LinearLayout.LayoutParams(0, dp(56), 1f).apply {
+        marginEnd = dp(8)
     }
 
-    private fun openLoveTv() {
-        android.util.Log.i("HbbTVO", "Azul recibido: canal=${channels.getOrNull(index)?.name} video=$hasVideo")
-        if (!hasVideo) notice("Espera a que aparezca el canal TDT")
-        else {
-            if (browser == null || browser?.isClosed == true) startBrowser()
-            if (browser?.isClosed == true) {
-                AlertDialog.Builder(this).setTitle("LOVEStv").setMessage(browserStatus)
-                    .setPositiveButton("Aceptar", null).show()
-            } else browser?.openBlue()
+    private fun runAccessCheck() {
+        val tv = packageFact(TCL_TV_PACKAGE)
+        val tuner = packageFact(TCL_TUNER_PACKAGE)
+        val activity = packageManager.resolveActivity(
+            Intent(Intent.ACTION_MAIN).setComponent(ComponentName(TCL_TV_PACKAGE, TCL_TV_ACTIVITY)),
+            PackageManager.MATCH_DEFAULT_ONLY
+        )
+        val tvLaunchable = activity?.activityInfo?.enabled == true
+        val lines = listOf(
+            "Prueba de acceso · ${now()}",
+            "TV TCL instalada: ${tv ?: "no encontrada"}",
+            "Actividad TVActivity accesible: ${if (tvLaunchable) "sí" else "no"}",
+            "Entrada de sintonizador TCL: ${tuner ?: "no encontrada"}",
+            "Aplicación HbbTV O!: ${packageName}",
+            "Resultado: ${if (tv != null && tuner != null && tvLaunchable) "la app TCL está disponible para abrirse" else "acceso TCL incompleto"}",
+            "Esta comprobación no sintoniza un canal ni demuestra que LOVEStv se abra."
+        )
+        updateReport(lines.joinToString("\n"))
+    }
+
+    private fun runDeviceCheck() {
+        val libs = HBBTV_LIBRARY_PATHS.map { path ->
+            val present = File(path).isFile
+            "${if (present) "presente" else "no visible"}: $path"
+        }
+        val lines = listOf(
+            "Prueba del dispositivo · ${now()}",
+            "Fabricante/modelo: ${Build.MANUFACTURER} / ${Build.MODEL}",
+            "Android/API: ${Build.VERSION.RELEASE} / ${Build.VERSION.SDK_INT}",
+            "Proceso de O!: ${if (Process.is64Bit()) "64" else "32"} bits",
+            "ABI admitidas: ${Build.SUPPORTED_ABIS.joinToString()}",
+            "Componentes de HbbTV observables (solo presencia de archivos):",
+            *libs.toTypedArray(),
+            "La presencia de bibliotecas no concede permiso para invocarlas ni acredita compatibilidad."
+        )
+        updateReport(lines.joinToString("\n"))
+    }
+
+    private fun packageFact(name: String): String? = try {
+        @Suppress("DEPRECATION")
+        val info = packageManager.getPackageInfo(name, 0)
+        val version = info.versionName?.let { " v$it" }.orEmpty()
+        "${info.applicationInfo?.loadLabel(packageManager)} ($name)$version"
+    } catch (_: PackageManager.NameNotFoundException) {
+        null
+    }
+
+    private fun openTclTv() {
+        val intent = Intent(Intent.ACTION_MAIN).setComponent(ComponentName(TCL_TV_PACKAGE, TCL_TV_ACTIVITY))
+        try {
+            startActivity(intent)
+            report += "\n\nDerivación a la TV TCL solicitada · ${now()}\nEn la TV elige un canal compatible y pulsa Azul manualmente."
+            renderReport()
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, "No se encontró la aplicación de TV TCL", Toast.LENGTH_LONG).show()
+        } catch (_: SecurityException) {
+            Toast.makeText(this, "El firmware no permite abrir la actividad de TV TCL", Toast.LENGTH_LONG).show()
         }
     }
 
-    private fun channelList() {
-        if (channels.isEmpty()) { loadChannels(); return }
-        AlertDialog.Builder(this).setTitle("Canales TDT")
-            .setSingleChoiceItems(channels.map { it.name }.toTypedArray(), index) { dialog, i ->
-                dialog.dismiss()
-                tune(i)
-            }.setNeutralButton("Abrir LOVEStv") { _, _ -> openLoveTv() }.show()
+    private fun recordManualResult(opened: Boolean) {
+        val outcome = if (opened) "LOVEStv se abrió (indicado manualmente)" else "LOVEStv no se abrió (indicado manualmente)"
+        report += "\n\nResultado comunicado por el usuario · ${now()}\n$outcome\nEste resultado no se detecta automáticamente ni prueba integración dentro de HbbTV O!."
+        renderReport()
     }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val key = event.keyCode
-        if (event.action == KeyEvent.ACTION_UP && handled.remove(key)) return true
-        if (event.action != KeyEvent.ACTION_DOWN) return super.dispatchKeyEvent(event)
-        if (event.repeatCount > 0 && key in handled) {
-            if (interactive && key in KeyEvent.KEYCODE_DPAD_UP..KeyEvent.KEYCODE_DPAD_RIGHT) browser?.sendKey(key)
-            return true
-        }
-        when {
-            key == KeyEvent.KEYCODE_BACK && interactive -> {
-                if (browser?.sendKey(key) != true) {
-                    stopBrowser()
-                    if (hasVideo) startBrowser()
-                }
-            }
-            key == KeyEvent.KEYCODE_PROG_BLUE -> openLoveTv()
-            interactive && browser?.sendKey(key) == true -> Unit
-            key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER -> channelList()
-            key == KeyEvent.KEYCODE_CHANNEL_UP || key == KeyEvent.KEYCODE_CHANNEL_DOWN ->
-                if (channels.isNotEmpty()) tune(Math.floorMod(index + if (key == KeyEvent.KEYCODE_CHANNEL_UP) 1 else -1, channels.size))
-            else -> return super.dispatchKeyEvent(event)
-        }
-        handled.add(key)
-        return true
+    private fun showReport() {
+        renderReport()
+        Toast.makeText(this, "Informe actualizado", Toast.LENGTH_SHORT).show()
     }
 
-    private fun notice(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+    private fun updateReport(text: String) {
+        report = text
+        renderReport()
+    }
 
-    override fun onStop() {
-        active = false
-        loadId++
-        hasVideo = false
-        handled.clear()
-        stopBrowser()
-        tv.setCallback(null)
-        tv.reset()
-        super.onStop()
+    private fun renderReport() {
+        reportText.text = report
+    }
+
+    private fun shareReport() {
+        if (report.isBlank()) runAccessCheck()
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "Informe HbbTV O!")
+            putExtra(Intent.EXTRA_TEXT, report)
+        }
+        startActivity(Intent.createChooser(intent, "Compartir informe"))
+    }
+
+    private fun saveReport() {
+        if (report.isBlank()) runAccessCheck()
+        val file = File(filesDir, "informe-hbbtv-o.txt")
+        file.writeText(report)
+        Toast.makeText(this, "Informe guardado dentro de la app", Toast.LENGTH_LONG).show()
+    }
+
+    private fun now() = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(Date())
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+
+    companion object {
+        private const val TCL_TV_PACKAGE = "com.tcl.tv"
+        private const val TCL_TV_ACTIVITY = "com.tcl.tv.TVActivity"
+        private const val TCL_TUNER_PACKAGE = "com.tcl.tvinput"
+        private val HBBTV_LIBRARY_PATHS = listOf(
+            "/product/lib/libhbbtv-server.so",
+            "/system_ext/lib/libsitatv.so",
+            "/product/lib/libsitatv.so",
+            "/product/lib/libcom_tcl_hbbtv_jni.tcl.so",
+            "/product/lib/libcom_tcl_tbrowser_jni.tcl.so"
+        )
     }
 }
