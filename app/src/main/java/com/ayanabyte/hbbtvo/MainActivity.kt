@@ -1,6 +1,8 @@
 package com.ayanabyte.hbbtvo
 
 import android.app.Activity
+import android.app.Application
+import android.os.Process
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -77,7 +79,7 @@ class MainActivity : Activity() {
             setBackgroundColor(0xD9000000.toInt())
         }
         top.addView(TextView(this).apply {
-            text = "HbbTV O!  ·  0.1.7"
+            text = "HbbTV O!  ·  0.1.8"
             textSize = 23f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
@@ -135,7 +137,8 @@ class MainActivity : Activity() {
         addAction("Azul") { bridge.emitBlue() }
         addAction("Actualizar TDT") { discoverChannels() }
         actions.post { actions.getChildAt(0)?.requestFocus() }
-        note("Actividad iniciada · appUid=${applicationInfo.uid} · proceso=${applicationInfo.processName}")
+        note("Actividad iniciada · UID=${Process.myUid()} · procesoREAL=${Application.getProcessName()} · paquete=$packageName · procesoDeclarado=${applicationInfo.processName}")
+        note("Experimento 0.1.8: proceso TCL nominal; permisos Android sin cambios")
         checkPermissionAndLoad()
     }
 

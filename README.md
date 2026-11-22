@@ -57,3 +57,9 @@ Logs: `logcat -d -v time -s HbbTVO:I '*:S' | tail -n 100`.
 ## Secuencia de arranque corregida (0.1.7)
 
 A partir del diagnóstico 0.1.6 (se registró `HbbtvServer.init()=1` pero faltó `Tbrowser.onSuccess`), la prueba **TVSDK + HbbTV** prioriza `initTbrowser` y su callback. Solo después de recibir `onSuccess(true)` solicita `setLivetvMode(true)` y llama a `HbbtvServer.start()`. La secuencia posterior de resintonización y vigilancia de estado sigue igual. Un aviso de 12 segundos diferencia un navegador que no responde de un arranque que se ejecutó pero no detecta la AIT. Esta hipótesis se prueba sin afirmar que el cambio sea causa confirmada.
+
+## Prueba de proceso de referencia Channel+ (0.1.8)
+
+El análisis del APK anterior Channel+ LOVEStv 1.45 confirma que su `ProbeActivity` usaba `android:process="com.tcl.tv"` bajo el UID no privilegiado de Channel+. Sus logs muestran `hbbtv_app_exist=1`, `EN_TCL_HBBTV_ON_NO_VOD` y carga de `hbbtv.lovestv.es` dentro de ese proceso. En HbbTV O! 0.1.8 se prueba **solo esta diferencia aislada**: `MainActivity` se declara en un proceso denominado `com.tcl.tv`, **manteniendo el paquete** `com.ayanabyte.hbbtvo`, su firma ordinaria y su propio UID. No concede permisos ni suplanta el UID de TCL. La actividad imprime el nombre de proceso real a través de `Application.getProcessName()` para contrastarlo con `ps -A`.
+
+Procedimiento: cerrar completamente la app antigua y cualquier experimento que comparta proceso, abrir HbbTV O! y pulsar `TVSDK + HbbTV`. Buscar `HbbTV estado`, `hbbtv_app_exist`, `LOAD_PAGE_START` y `EN_TCL_HBBTV_ON_NO_VOD`. Una coincidencia del nombre de proceso por sí sola no garantiza activación de HbbTV.
