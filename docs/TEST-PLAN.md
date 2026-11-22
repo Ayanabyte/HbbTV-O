@@ -6,7 +6,16 @@ Comprobar `READ_TV_LISTINGS`, canales reales, `TvView.tune`, `onVideoAvailable` 
 
 ## Etapa 2 · Motor TCL
 
-Verificar presencia de clases TCL, `HbbtvServer.init`, callback de `Tbrowser.initTbrowser`, llamada `HbbtvServer.start`, registro de eventos HbbTV y aceptación de Azul. Guardar logcat completo para comparar con `com.tcl.tv`.
+Validar el flujo de reproducción HbbTV en el televisor de referencia:
+
+1. Instalar el APK y conceder acceso a la lista de canales.
+2. Confirmar que se sintoniza un canal DVB-T/T2 y aparece vídeo.
+3. Pulsar **Abrir LOVEStv** y comprobar en pantalla si se abre la aplicación emitida por el canal.
+4. Probar el botón azul físico y el control **Azul** de la interfaz.
+5. Revisar el estado en la interfaz y los mensajes `HbbTVO` de Logcat.
+6. Cambiar de canal y confirmar que la sesión de vídeo no se interrumpe al inicializar el navegador.
+
+El estado `HbbtvServer.start()` aceptado y el envío de la tecla azul no demuestran por sí solos que LOVEStv haya aparecido. Registrar el resultado visual y el modelo/firmware del televisor.
 
 ## Etapa 3 · Señalización DVB
 

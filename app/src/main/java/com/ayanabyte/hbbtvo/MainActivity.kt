@@ -1,8 +1,6 @@
 package com.ayanabyte.hbbtvo
 
 import android.app.Activity
-import android.app.Application
-import android.os.Process
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -26,7 +24,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import kotlin.concurrent.thread
 
-/** HbbTV O! standalone Android TV diagnostic player. */
+/** HbbTV O! standalone Android TV player. */
 class MainActivity : Activity() {
     private lateinit var tvView: TvView
     private lateinit var bridge: TclHbbtvEngine
@@ -34,6 +32,8 @@ class MainActivity : Activity() {
     private lateinit var logView: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var actions: LinearLayout
+    private lateinit var topPanel: View
+    private lateinit var bottomPanel: View
     private var channels: List<TvChannelRepository.Channel> = emptyList()
     private var selectedIndex = -1
     private var videoAvailable = false
@@ -73,13 +73,13 @@ class MainActivity : Activity() {
         root.addView(browserLayer, FrameLayout.LayoutParams(-1, -1))
         bridge = TclHbbtvEngine(this, browserLayer, ::note)
 
-        val top = LinearLayout(this).apply {
+        topPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(14), dp(20), dp(14))
             setBackgroundColor(0xD9000000.toInt())
         }
-        top.addView(TextView(this).apply {
-            text = "HbbTV O!  ·  0.1.10"
+        (topPanel as LinearLayout).addView(TextView(this).apply {
+            text = "HbbTV O!  ·  0.1.11"
             textSize = 23f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
@@ -89,10 +89,10 @@ class MainActivity : Activity() {
             textSize = 16f
             setTextColor(0xFFB3E5FC.toInt())
         }
-        top.addView(status)
-        root.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        (topPanel as LinearLayout).addView(status)
+        root.addView(topPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
-        val bottom = LinearLayout(this).apply {
+        bottomPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(0xE8000000.toInt())
             setPadding(dp(12), dp(10), dp(12), dp(10))
@@ -104,7 +104,7 @@ class MainActivity : Activity() {
             isFocusableInTouchMode = false
             addView(actions)
         }
-        bottom.addView(scrollButtons)
+        (bottomPanel as LinearLayout).addView(scrollButtons)
         logView = TextView(this).apply {
             isFocusable = false
             isFocusableInTouchMode = false
@@ -119,27 +119,18 @@ class MainActivity : Activity() {
             addView(logView)
             isFillViewport = true
         }
-        bottom.addView(logScroll, LinearLayout.LayoutParams(-1, dp(126)))
-        root.addView(bottom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+        (bottomPanel as LinearLayout).addView(logScroll, LinearLayout.LayoutParams(-1, dp(126)))
+        root.addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         setContentView(root)
 
         addAction("Canal anterior") { changeChannel(-1) }
         addAction("Canal siguiente") { changeChannel(+1) }
-        addAction("Analizar TCL") { bridge.inspect() }
-        addAction("Contexto DVB") { inspectDvbChannel() }
-        addAction("Permisos TCL") { inspectPermissions() }
-        addAction("TVSDK + HbbTV") { runFullTclExperiment() }
-        addAction("Estado TCL") { reportTclStartupState() }
-        addAction("HbbTV ON") { enableTclHbbtv() }
-        addAction("Gestor ON") { enableTclManager() }
-        addAction("Iniciar motor") { bridge.initialize(videoAvailable) }
-        addAction("Start HbbTV") { bridge.start() }
+        addAction("Abrir LOVEStv") { openLoveStv() }
         addAction("Azul") { bridge.emitBlue() }
         addAction("Actualizar TDT") { discoverChannels() }
+        addAction("Estado HbbTV") { reportHbbtvState() }
         actions.post { actions.getChildAt(0)?.requestFocus() }
-        note("Actividad iniciada · UID=${Process.myUid()} · procesoREAL=${Application.getProcessName()} · paquete=$packageName · procesoDeclarado=${applicationInfo.processName}")
-        note("Experimento 0.1.9: forzar ABI 32-bit en manifiesto; no altera la identidad/UID del paquete")
-        note("ABI REAL: Process.is64Bit()=${Process.is64Bit()}; ABIs32=${android.os.Build.SUPPORTED_32_BIT_ABIS.joinToString()}; nativeLibraryDir=${applicationInfo.nativeLibraryDir}")
+        note("HbbTV O! listo. Busca canales TDT y espera a que haya señal antes de abrir LOVEStv.")
         checkPermissionAndLoad()
     }
 
@@ -190,55 +181,24 @@ class MainActivity : Activity() {
             setStroke(dp(2), stroke)
         }
 
-    private fun inspectDvbChannel() {
-        val selected = channels.getOrNull(selectedIndex)
-        note("Iniciando diagnóstico de identidad del canal…")
-        thread(name = "hbbtvo-dvb-inspection") {
-            val lines = TclChannelInspector(this).inspect(selected)
-            ui.post { lines.forEach(::note) }
-        }
-    }
-
-    private fun inspectPermissions() {
-        note("Comprobando permisos y firma de HbbTV O!…")
-        thread(name = "hbbtvo-permissions") {
-            val lines = TclPrivilegeInspector(this).inspect()
-            ui.post { lines.forEach(::note) }
-        }
-    }
-
-    private fun reportTclStartupState() {
+    private fun reportHbbtvState() {
         val state = TclStartupProbe(this).snapshot()
-        note("Estado TCL: ${state.summary()}")
+        note("Estado HbbTV: ${state.summary()}")
     }
 
-    /**
-     * Experimental sequence based on observed TCL initialization behavior:
-     * TVSDK capability preflight -> native live mode -> browser ready -> HbbTV
-     * start -> re-tune same DVB program -> bounded native state observation.
-     * No platform UID, signature spoofing or OEM credentials.
-     */
-    private fun runFullTclExperiment() {
+    private fun openLoveStv() {
         val channel = channels.getOrNull(selectedIndex)
         if (!videoAvailable || channel == null) {
-            note("TVSDK: primero debe verse el canal TDT")
+            note("LOVEStv: espera a que se vea un canal TDT")
             return
         }
         val generation = ++bootGeneration
-        note("=== Prueba completa TVSDK → HbbTV (canal=${channel.name}) ===")
-        thread(name = "hbbtvo-tvsdk-check") {
-            val lines = TclStartupProbe(this).preflight()
-            ui.post {
-                if (isFinishing || isDestroyed || generation != bootGeneration) return@post
-                lines.forEach(::note)
-                note("TVSDK: iniciando motor TCL con modo televisión en directo")
-                bridge.initialize(videoAvailable, autoStartOnBrowser = true) {
-                    if (generation != bootGeneration || isFinishing || isDestroyed) return@initialize
-                    note("HbbTV: start invocado; conservando el TvView sintonizado sin reset ni retune (paridad Channel+ 1.45)")
-                    note("DVB: canal=${channel.name} · id=${channel.id} · input=${channel.inputId}; videoAvailable=$videoAvailable")
-                    monitorHbbtvState(generation, 0, null)
-                }
-            }
+        note("LOVEStv: iniciando HbbTV en ${channel.name}; se conserva la sintonización TDT")
+        bridge.initialize(videoAvailable, autoStartOnBrowser = true) {
+            if (generation != bootGeneration || isFinishing || isDestroyed) return@initialize
+            note("Motor HbbTV iniciado en ${channel.name}. Enviando tecla azul; todavía se comprobará si TCL activa una aplicación.")
+            bridge.emitBlue()
+            monitorHbbtvState(generation, 0, null)
         }
     }
 
@@ -248,30 +208,16 @@ class MainActivity : Activity() {
         val summary = snapshot.summary()
         if (summary != previous) note("HbbTV estado +${attempt * 2}s: $summary")
         if (snapshot.isActive()) {
-            note("=== Estado HbbTV activo detectado: ${snapshot.serverState} / ${snapshot.managerState} ===")
+            note("Estado HbbTV informado por TCL: ${snapshot.serverState} / ${snapshot.managerState}. Ocultando controles para mostrar la aplicación.")
+            topPanel.visibility = View.GONE
+            bottomPanel.visibility = View.GONE
             return
         }
         if (attempt >= 15) {
-            note("HbbTV: sin transición activa tras 30 s; revisar AIT/registro TVSDK")
+            note("HbbTV: no se detectó una aplicación activa tras 30 s. Comprueba que el canal emita una AIT y que HbbTV esté habilitado en el televisor.")
             return
         }
         ui.postDelayed({ monitorHbbtvState(generation, attempt + 1, summary) }, 2000L)
-    }
-
-    private fun enableTclHbbtv() {
-        note("Solicitando HbbTV ON a TCL…")
-        thread(name = "hbbtvo-hbbtv-switch") {
-            val lines = TclChannelInspector(this).enableHbbtvFlag()
-            ui.post { lines.forEach(::note) }
-        }
-    }
-
-    private fun enableTclManager() {
-        note("Solicitando Gestor HbbTV ON a TCL…")
-        thread(name = "hbbtvo-hbbtv-manager") {
-            val lines = TclChannelInspector(this).enableManager()
-            ui.post { lines.forEach(::note) }
-        }
     }
 
     private fun checkPermissionAndLoad() {

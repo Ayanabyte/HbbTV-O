@@ -2,18 +2,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
-    <!-- Development-permission trial: ADB may grant this; never equates to system UID. -->
-    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
-    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
 
     <uses-feature android:name="android.software.leanback" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-
-    <queries>
-        <package android:name="com.tcl.android.webview" />
-        <package android:name="com.tcl.tv" />
-        <package android:name="com.tcl.tvinput" />
-    </queries>
 
     <application
         android:theme="@android:style/Theme.Material.NoActionBar"
@@ -31,7 +22,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:process="com.tcl.tv"
             android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -30,16 +30,6 @@ class TclHbbtvEngine(
         activity.runOnUiThread { report(message) }
     }
 
-    fun inspect() {
-        listOf("com.tcl.hbbtv.HbbtvServer", "com.tcl.tbrowser.Tbrowser",
-            "com.tcl.hbbtv.HbbtvEventNotify", "com.tcl.tvmanager.vo.TCLKeyMap\$EnTCLKeyMap")
-            .forEach { name ->
-                runCatching { Class.forName(name, false, activity.classLoader) }
-                    .onSuccess { say("Disponible: $name") }
-                    .onFailure { say("No accesible: $name (${it.javaClass.simpleName})") }
-            }
-    }
-
     fun initialize(
         videoAvailable: Boolean,
         autoStartOnBrowser: Boolean = false,
