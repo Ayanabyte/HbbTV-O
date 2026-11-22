@@ -76,7 +76,7 @@ class MainActivity : Activity() {
             setBackgroundColor(0xD9000000.toInt())
         }
         top.addView(TextView(this).apply {
-            text = "HbbTV O!  ·  0.1.2"
+            text = "HbbTV O!  ·  0.1.3"
             textSize = 23f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
@@ -123,6 +123,7 @@ class MainActivity : Activity() {
         addAction("Canal anterior") { changeChannel(-1) }
         addAction("Canal siguiente") { changeChannel(+1) }
         addAction("Analizar TCL") { bridge.inspect() }
+        addAction("Contexto DVB") { inspectDvbChannel() }
         addAction("Iniciar motor") { bridge.initialize(videoAvailable) }
         addAction("Start HbbTV") { bridge.start() }
         addAction("Azul") { bridge.emitBlue() }
@@ -178,6 +179,15 @@ class MainActivity : Activity() {
             setColor(fill)
             setStroke(dp(2), stroke)
         }
+
+    private fun inspectDvbChannel() {
+        val selected = channels.getOrNull(selectedIndex)
+        note("Iniciando diagnóstico de identidad del canal…")
+        thread(name = "hbbtvo-dvb-inspection") {
+            val lines = TclChannelInspector(this).inspect(selected)
+            ui.post { lines.forEach(::note) }
+        }
+    }
 
     private fun checkPermissionAndLoad() {
         if (checkSelfPermission(TV_LISTINGS_PERMISSION) == PackageManager.PERMISSION_GRANTED) {

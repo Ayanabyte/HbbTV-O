@@ -33,3 +33,9 @@ Proyecto Android TV independiente, escrito en Kotlin desde cero para investigar 
 Abrir la carpeta con Android Studio (JDK 17, SDK 34 y conexión para descargar los complementos Gradle) y ejecutar `assembleDebug` sobre el módulo `app`. En CI se construye con Gradle 8.2.1, AGP 8.1.4 y Kotlin 1.9.22. No se necesita copiar APKs ni archivos de otras aplicaciones al código del proyecto.
 
 Repositorio previsto: `https://github.com/Ayanabyte/HbbTV-O`
+
+## Diagnóstico de identificación DVB (0.1.3)
+
+El botón **Contexto DVB** compara de forma exclusivamente de lectura la tripleta ONID/TSID/SID del canal Android TV con `TTvChannelManager.getCurrentProgramInfo()`, que expone `channelId`, `onID`, `transportStreamID` y `serviceID`. También lee `TTvFunctionManager.isHbbtvOn()` y `HbbtvServer.getState()`. Los métodos están presentes en los JAR proporcionados por el usuario; los JAR propietarios no se incluyen en el repositorio. Una discrepancia o valor nulo no demuestra por sí solo qué control interno de TCL falta.
+
+En Bugjaeger: `logcat -d -v time -s HbbTVO:I '*:S'`.
