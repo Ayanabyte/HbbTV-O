@@ -39,3 +39,9 @@ Repositorio previsto: `https://github.com/Ayanabyte/HbbTV-O`
 El botón **Contexto DVB** compara de forma exclusivamente de lectura la tripleta ONID/TSID/SID del canal Android TV con `TTvChannelManager.getCurrentProgramInfo()`, que expone `channelId`, `onID`, `transportStreamID` y `serviceID`. También lee `TTvFunctionManager.isHbbtvOn()` y `HbbtvServer.getState()`. Los métodos están presentes en los JAR proporcionados por el usuario; los JAR propietarios no se incluyen en el repositorio. Una discrepancia o valor nulo no demuestra por sí solo qué control interno de TCL falta.
 
 En Bugjaeger: `logcat -d -v time -s HbbTVO:I '*:S'`.
+
+## Permisos y firma TCL (0.1.5)
+
+El botón **Permisos TCL** informa del UID real, coincidencia de firmas y permisos efectivos. Se declara `android.permission.WRITE_SECURE_SETTINGS` para una prueba explícita y opcional con el shell ADB de la propia TV: `pm grant com.ayanabyte.hbbtvo android.permission.WRITE_SECURE_SETTINGS`. El resultado depende del firmware; una concesión no proporciona UID 1000 ni firmas TCL. El botón es de lectura y no altera configuraciones.
+
+Para comparar, pulsar **Permisos TCL**, luego **HbbTV ON**, **Gestor ON** y de nuevo **Contexto DVB**. Si la activación sigue sin persistir, el bloqueo se halla fuera de ese permiso de desarrollo, o intervienen otras condiciones.
