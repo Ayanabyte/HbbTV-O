@@ -15,6 +15,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
@@ -41,6 +42,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         tvView = TvView(this).apply {
+            isFocusable = false
+            isFocusableInTouchMode = false
             setCallback(object : TvView.TvInputCallback() {
                 override fun onVideoAvailable(inputId: String) {
                     videoAvailable = true
@@ -73,7 +76,7 @@ class MainActivity : Activity() {
             setBackgroundColor(0xD9000000.toInt())
         }
         top.addView(TextView(this).apply {
-            text = "HbbTV O!  ·  0.1.1"
+            text = "HbbTV O!  ·  0.1.2"
             textSize = 23f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
@@ -94,15 +97,22 @@ class MainActivity : Activity() {
         actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val scrollButtons = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
+            isFocusable = false
+            isFocusableInTouchMode = false
             addView(actions)
         }
         bottom.addView(scrollButtons)
         logView = TextView(this).apply {
+            isFocusable = false
+            isFocusableInTouchMode = false
             textSize = 12f
             setTextColor(0xFFE3F2FD.toInt())
             typeface = Typeface.MONOSPACE
         }
         logScroll = ScrollView(this).apply {
+            isFocusable = false
+            isFocusableInTouchMode = false
+            descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
             addView(logView)
             isFillViewport = true
         }
@@ -117,6 +127,7 @@ class MainActivity : Activity() {
         addAction("Start HbbTV") { bridge.start() }
         addAction("Azul") { bridge.emitBlue() }
         addAction("Actualizar TDT") { discoverChannels() }
+        actions.post { actions.getChildAt(0)?.requestFocus() }
         note("Actividad iniciada · appUid=${applicationInfo.uid} · proceso=${applicationInfo.processName}")
         checkPermissionAndLoad()
     }
@@ -217,6 +228,24 @@ class MainActivity : Activity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_PROG_BLUE) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                note("Botón azul físico detectado")
+            }
+            if (bridge.key(event)) return true
+            return event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP
+        }
+        // Keep button navigation responsive even after the HbbTV engine starts.
+        if (currentFocus is Button && event.keyCode in intArrayOf(
+                KeyEvent.KEYCODE_DPAD_LEFT,
+                KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_CENTER,
+                KeyEvent.KEYCODE_ENTER
+            )) {
+            return super.dispatchKeyEvent(event)
+        }
         if (bridge.key(event)) return true
         return super.dispatchKeyEvent(event)
     }
@@ -234,7 +263,7 @@ class MainActivity : Activity() {
         messages.addLast(message)
         while (messages.size > 45) messages.removeFirst()
         logView.text = messages.joinToString("\n")
-        logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
+        logScroll.post { logScroll.scrollTo(0, logView.bottom) }
     }
 
     override fun onDestroy() {
