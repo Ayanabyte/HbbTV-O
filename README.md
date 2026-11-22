@@ -1,11 +1,19 @@
-# HbbTV O!
+# O! · LOVEStv Lab
 
-Aplicación independiente para Android TV. Sintoniza TDT con TvView y, cuando hay imagen, inicia el servidor HbbTV y el navegador instalados en el TCL. La compatibilidad depende de que el firmware permita iniciar esos componentes desde la aplicación.
+Aplicación de prueba Android TV nueva e independiente para probar sintonización TDT con TvView y navegador HbbTV de TCL con botón azul.
 
-## Mando
+No copia un DEX antiguo, ni librerías del fabricante, ni autorizaciones de apps de sistema. Las APIs del firmware TCL podrían negar acceso a aplicaciones externas: la compilación no demuestra funcionamiento.
 
-- OK abre la lista de canales. CH+ y CH− cambian de canal.
-- Azul se envía al servicio HbbTV del canal actual. Las flechas y OK pasan al servicio durante la navegación.
-- Atrás se envía primero al servicio. Cuando este devuelve el control, la app conserva el canal y prepara otra sesión.
+## Prueba de aceptación
 
-El identificador de instalación es `com.ayanabyte.hbbtvo.live`. GitHub Actions compila la APK de depuración con Gradle. La prueba de aceptación en la TV consiste en abrir LOVEStv con azul, salir al mismo canal y abrirlo una segunda vez.
+1. Abrir O! y conceder acceso a listas de TV.
+2. Confirmar imagen de Antena 3 o elegir otro canal con OK.
+3. Pulsar AZUL y verificar apertura real de LOVEStv dentro de O!.
+4. Salir al mismo canal y pulsar AZUL de nuevo SIN reiniciar la aplicación.
+5. En MENÚ / INFO puede verse y compartirse el diagnóstico; abrir TV TCL original solo permite comparar.
+
+Paquete independiente: com.ayanabyte.o.lovestv.lab.
+Compilación: rama o-lovestv-lab, GitHub Actions, APK de depuración ARM32.
+Para el registro: adb logcat -d -v time -s OLoveTv:I '*:S'
+
+La firma de depuración puede variar en compilaciones distintas. Si una actualización no se instala, desinstalar solamente esta aplicación de prueba antes de instalar la APK nueva.

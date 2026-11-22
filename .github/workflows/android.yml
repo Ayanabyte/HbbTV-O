@@ -1,11 +1,10 @@
-name: Build HbbTV O!
+name: O! LOVEStv Lab APK
 on:
   push:
-  pull_request:
+    branches: [main, o-lovestv-lab]
   workflow_dispatch:
-
 jobs:
-  apk:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -15,32 +14,29 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK / NDK
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653" "cmake;3.22.1"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.2.1'
-      - name: Assemble debug APK
+      - name: Compile APK
         run: gradle --no-daemon :app:assembleDebug
-      - name: Prepare direct APK download
-        run: |
-          VERSION=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts)
-          APK="HbbTV-O-${VERSION}-debug.apk"
-          cp app/build/outputs/apk/debug/app-debug.apk "$APK"
-          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
-          echo "APK=${APK}" >> "$GITHUB_ENV"
-      - name: Publish direct APK download
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      - name: Prepare APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk O-LOVEStv-Lab-0.1.0-test.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: O-LOVEStv-Lab-APK
+          path: O-LOVEStv-Lab-0.1.0-test.apk
+      - name: Publish direct test download
+        if: github.ref == 'refs/heads/o-lovestv-lab'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v${VERSION}"
+          TAG="o-lovestv-lab-v0.1.0"
+          FILE="O-LOVEStv-Lab-0.1.0-test.apk"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$TAG" "$APK" --repo "$GITHUB_REPOSITORY" \
-              --title "HbbTV O! ${VERSION}" \
-              --notes "APK de depuración de HbbTV O! ${VERSION}."
+            gh release create "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" --title "O! LOVEStv Lab 0.1.0" --notes "APK de laboratorio. No validada en televisor real."
           fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: HbbTV-O-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
