@@ -15,6 +15,18 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.graphics.Color;
+import android.content.ContentValues;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -177,9 +189,9 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             new AlertDialog.Builder(this)
                 .setTitle("O! · Fallo de HbbTV")
                 .setMessage(reason+"\n\nEl canal TDT sigue funcionando."+
-                    "\n\nPulsa DIAGNÓSTICO para ver el registro o COMPARTIR para enviarlo.")
-                .setPositiveButton("DIAGNÓSTICO",(d,w)->diagnostics())
-                .setNeutralButton("COMPARTIR",(d,w)->share())
+                    "\n\nPuedes guardar el diagnóstico como archivo .txt en Descargas.")
+                .setPositiveButton("GUARDAR .TXT",(d,w)->saveDiagnostics())
+                .setNeutralButton("DIAGNÓSTICO",(d,w)->diagnostics())
                 .setNegativeButton("CERRAR",null)
                 .show();
         });
@@ -198,20 +210,23 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     }
     private void menu(){
         trace("Menú solicitado desde mando");
-        String[] actions={"Ver diagnóstico", "Compartir registro",
+        String[] actions={"Ver diagnóstico", "GUARDAR diagnóstico .TXT en Descargas",
+            "Compartir registro", "Copiar diagnóstico",
             "Cambiar canal TDT", "Abrir LOVEStv (AZUL)",
             "Reiniciar motor HbbTV", "Resintonizar con HbbTV activo",
             "Comparar con TV original TCL"};
-        new AlertDialog.Builder(this).setTitle("O! 0.1.3 · MENÚ Y DIAGNÓSTICO")
+        new AlertDialog.Builder(this).setTitle("O! 0.1.4 · MENÚ Y DIAGNÓSTICO")
             .setItems(actions,(d,which)->{
                 switch(which){
                     case 0:diagnostics();break;
-                    case 1:share();break;
-                    case 2:showChannels();break;
-                    case 3:blue();break;
-                    case 4:stopEngine();failureDialogShown=false;startEngine();break;
-                    case 5:retuneWithHbbtv();break;
-                    case 6:originalTv();break;
+                    case 1:saveDiagnostics();break;
+                    case 2:share();break;
+                    case 3:copyDiagnostics();break;
+                    case 4:showChannels();break;
+                    case 5:blue();break;
+                    case 6:stopEngine();failureDialogShown=false;startEngine();break;
+                    case 7:retuneWithHbbtv();break;
+                    case 8:originalTv();break;
                 }
             }).setNegativeButton("CERRAR",null).show();
     }
@@ -240,7 +255,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     }
 
     private String diagnosticText(){
-        return "O! LOVEStv Lab 0.1.3\n"
+        return "O! LOVEStv Lab 0.1.4\n"
             +"Canal: "+(position<0?"ninguno":channels.get(position).label())
             +"\nVídeo: "+hasVideo
             +"\nHbbTV: "+(hbbtv==null?"sin iniciar":hbbtv.isReady()?"preparado":"no preparado")
@@ -248,11 +263,64 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             +"\n\n--- Registro ---\n"+history;
     }
     private void diagnostics(){
-        new AlertDialog.Builder(this).setTitle("O! 0.1.3 · DIAGNÓSTICO")
+        new AlertDialog.Builder(this).setTitle("O! 0.1.4 · DIAGNÓSTICO")
             .setMessage(diagnosticText())
-            .setPositiveButton("COMPARTIR",(d,w)->share())
-            .setNeutralButton("COPIAR",(d,w)->copyDiagnostics())
+            .setPositiveButton("GUARDAR .TXT",(d,w)->saveDiagnostics())
+            .setNeutralButton("COMPARTIR",(d,w)->share())
             .setNegativeButton("CERRAR",null).show();
+    }
+    /**
+     * Export text as a user-visible Download. Android 10+ uses the system
+     * MediaStore API and does not need storage permissions.
+     */
+    private void saveDiagnostics(){
+        final String filename="O-LOVEStv-diagnostico-"+
+            new SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date())+".txt";
+        final byte[] bytes=diagnosticText().getBytes(StandardCharsets.UTF_8);
+        Uri created=null;
+        try {
+            String location;
+            if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.Q){
+                ContentValues values=new ContentValues();
+                values.put(MediaStore.MediaColumns.DISPLAY_NAME,filename);
+                values.put(MediaStore.MediaColumns.MIME_TYPE,"text/plain");
+                values.put(MediaStore.MediaColumns.RELATIVE_PATH,Environment.DIRECTORY_DOWNLOADS+"/");
+                values.put(MediaStore.MediaColumns.IS_PENDING,1);
+                created=getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values);
+                if(created==null)throw new IllegalStateException("No se pudo crear el archivo en Descargas");
+                try(OutputStream out=getContentResolver().openOutputStream(created)){
+                    if(out==null)throw new IllegalStateException("No se pudo abrir el archivo de salida");
+                    out.write(bytes);
+                    out.flush();
+                }
+                ContentValues ready=new ContentValues();
+                ready.put(MediaStore.MediaColumns.IS_PENDING,0);
+                getContentResolver().update(created,ready,null,null);
+                location="/sdcard/Download/"+filename;
+            } else {
+                File directory=getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                if(directory==null)throw new IllegalStateException("No hay almacenamiento disponible");
+                if(!directory.exists()&&!directory.mkdirs())throw new IllegalStateException("No se pudo crear la carpeta");
+                File file=new File(directory,filename);
+                try(FileOutputStream out=new FileOutputStream(file)){
+                    out.write(bytes);
+                    out.flush();
+                }
+                location=file.getAbsolutePath();
+            }
+            trace("Diagnóstico guardado: "+location+" ("+bytes.length+" bytes)");
+            new AlertDialog.Builder(this).setTitle("Archivo de diagnóstico guardado")
+                .setMessage("Se ha guardado correctamente en:\n\n"+location+
+                    "\n\nPuedes recuperarlo desde Descargas o con Bugjaeger.")
+                .setPositiveButton("OK",null).show();
+        }catch(Throwable error){
+            if(created!=null)try{getContentResolver().delete(created,null,null);}catch(Throwable ignored){}
+            trace("No se pudo guardar diagnóstico: "+error);
+            new AlertDialog.Builder(this).setTitle("Error al guardar diagnóstico")
+                .setMessage(error.getClass().getSimpleName()+": "+error.getMessage())
+                .setPositiveButton("COMPARTIR EN SU LUGAR",(d,w)->share())
+                .setNegativeButton("CERRAR",null).show();
+        }
     }
     private void copyDiagnostics(){
         try {
