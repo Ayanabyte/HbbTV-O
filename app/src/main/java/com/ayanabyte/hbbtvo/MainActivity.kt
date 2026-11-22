@@ -79,7 +79,7 @@ class MainActivity : Activity() {
             setBackgroundColor(0xD9000000.toInt())
         }
         top.addView(TextView(this).apply {
-            text = "HbbTV O!  ·  0.1.8"
+            text = "HbbTV O!  ·  0.1.9"
             textSize = 23f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
@@ -138,7 +138,8 @@ class MainActivity : Activity() {
         addAction("Actualizar TDT") { discoverChannels() }
         actions.post { actions.getChildAt(0)?.requestFocus() }
         note("Actividad iniciada · UID=${Process.myUid()} · procesoREAL=${Application.getProcessName()} · paquete=$packageName · procesoDeclarado=${applicationInfo.processName}")
-        note("Experimento 0.1.8: proceso TCL nominal; permisos Android sin cambios")
+        note("Experimento 0.1.9: forzar ABI 32-bit en manifiesto; no altera la identidad/UID del paquete")
+        note("ABI REAL: Process.is64Bit()=${Process.is64Bit()}; ABIs32=${android.os.Build.SUPPORTED_32_BIT_ABIS.joinToString()}; nativeLibraryDir=${applicationInfo.nativeLibraryDir}")
         checkPermissionAndLoad()
     }
 

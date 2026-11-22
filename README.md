@@ -63,3 +63,11 @@ A partir del diagnóstico 0.1.6 (se registró `HbbtvServer.init()=1` pero faltó
 El análisis del APK anterior Channel+ LOVEStv 1.45 confirma que su `ProbeActivity` usaba `android:process="com.tcl.tv"` bajo el UID no privilegiado de Channel+. Sus logs muestran `hbbtv_app_exist=1`, `EN_TCL_HBBTV_ON_NO_VOD` y carga de `hbbtv.lovestv.es` dentro de ese proceso. En HbbTV O! 0.1.8 se prueba **solo esta diferencia aislada**: `MainActivity` se declara en un proceso denominado `com.tcl.tv`, **manteniendo el paquete** `com.ayanabyte.hbbtvo`, su firma ordinaria y su propio UID. No concede permisos ni suplanta el UID de TCL. La actividad imprime el nombre de proceso real a través de `Application.getProcessName()` para contrastarlo con `ps -A`.
 
 Procedimiento: cerrar completamente la app antigua y cualquier experimento que comparta proceso, abrir HbbTV O! y pulsar `TVSDK + HbbTV`. Buscar `HbbTV estado`, `hbbtv_app_exist`, `LOAD_PAGE_START` y `EN_TCL_HBBTV_ON_NO_VOD`. Una coincidencia del nombre de proceso por sí sola no garantiza activación de HbbTV.
+
+## Prueba 0.1.9 — ABI TCL 32-bit (hipótesis basada en Channel+ 1.42)
+
+El registro original de Channel+ (20:57:47–20:57:59) demuestra que su ejecución funcional usó un proceso de **32 bits** (`64bit=false`), registró TVSDK (el método `systemAuthorized` devolvió true) **antes** de `HbbtvServer.init()`, inicializó `Tbrowser` directamente sobre su Activity y alcanzó `EN_TCL_HBBTV_ON_NO_VOD`.
+
+HbbTV O! 0.1.8 reprodujo el nombre `com.tcl.tv` de proceso pero no comprobó su ABI real. 0.1.9 añade `android:use32bitAbi="true"` como intento de selección de zygote de 32 bits, registra `Process.is64Bit()`, ABIs soportados y `nativeLibraryDir` tanto al abrir como en el preflight. **No se asume que el atributo haya surtido efecto**: el registro de proceso en el dispositivo es la prueba definitiva. Si sigue en 64 bits, hace falta una variante APK con solo librerías `armeabi-v7a` empaquetadas y firmadas, como la variante hbbtv32 de Channel+.
+
+El registro OEM de Channel+ no se replica sin conocer un procedimiento verificable y autorizado. Ni un `start()=0` ni `Process.is64Bit()=false` demuestran por sí solos que LOVEStv esté funcionando.

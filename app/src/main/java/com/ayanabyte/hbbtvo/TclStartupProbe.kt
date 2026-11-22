@@ -38,6 +38,10 @@ class TclStartupProbe(private val context: Context) {
         val report = mutableListOf<String>()
         report += "TVSDK 1/4: verificación de entorno y autorización"
         report += "TVSDK: paquete=${context.packageName}; UID=${Process.myUid()}"
+        report += "TVSDK: proceso=${android.app.Application.getProcessName()}; is64Bit=${Process.is64Bit()}; soporte32=${android.os.Build.SUPPORTED_32_BIT_ABIS.joinToString()}"
+        if (Process.is64Bit()) report += "AVISO ABI: Channel+ funcional era 32-bit; este proceso sigue en 64-bit y necesita prueba de empaquetado ARMv7"
+        else report += "ABI TCL: proceso de 32 bits confirmado, como Channel+ 1.42"
+        report += "Referencia Channel+ 1.42: systemAuthorized(true) antes de HbbtvServer.init; HbbTV O! no ejecuta registro OEM"
 
         report += "TVSDK: TTvFunctionManager disponible=" + safely {
             val cls = Class.forName("com.tcl.tvmanager.TTvFunctionManager", false, context.classLoader)

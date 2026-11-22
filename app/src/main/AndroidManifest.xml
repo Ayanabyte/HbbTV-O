@@ -18,6 +18,7 @@
     <application
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:label="HbbTV O!"
+        android:use32bitAbi="true"
         android:allowBackup="false"
         android:usesCleartextTraffic="true">
 
