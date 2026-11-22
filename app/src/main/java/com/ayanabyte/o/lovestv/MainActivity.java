@@ -33,6 +33,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     private TclHbbtvClient hbbtv;
     private int position=-1,requestId;
     private boolean foreground,hasVideo,interactive,pendingBlue;
+    private boolean failureDialogShown;
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
@@ -80,12 +81,12 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
                 if(!foreground||token!=requestId)return;
                 if(failure!=null){
                     trace("Fallo consulta TDT: "+failure);
-                    show("No se pudo consultar la TDT · MENÚ para diagnóstico");
+                    show("No se pudo consultar la TDT · OK para diagnóstico");
                     return;
                 }
                 channels.clear();channels.addAll(result);
                 trace("Canales TDT="+channels.size());
-                if(channels.isEmpty()){show("No hay canales TDT · MENÚ para diagnóstico");return;}
+                if(channels.isEmpty()){show("No hay canales TDT · OK para diagnóstico");return;}
                 long previous=getPreferences(MODE_PRIVATE).getLong("channel",-1);
                 int choice=-1;
                 for(int i=0;i<channels.size();i++)if(channels.get(i).id==previous)choice=i;
@@ -101,6 +102,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     private void tune(int next){
         if(!foreground||next<0||next>=channels.size())return;
         stopEngine();tv.reset();position=next;
+        failureDialogShown=false;
         hasVideo=false;interactive=false;pendingBlue=false;
         TvChannels.Channel channel=channels.get(next);
         final long selectedId=channel.id;
@@ -130,7 +132,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             tv.tune(channel.input,channel.uri());
             getPreferences(MODE_PRIVATE).edit().putLong("channel",channel.id).apply();
             show("Sintonizando "+channel.label());
-        }catch(Throwable e){trace("Error sintonización "+e);show("Error de sintonización · MENÚ");}
+        }catch(Throwable e){trace("Error sintonización "+e);show("Error de sintonización · OK");}
     }
     private void startEngine(){
         if(!foreground||!hasVideo)return;
@@ -146,7 +148,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
         boolean accepted=hbbtv.sendKey(KeyEvent.KEYCODE_PROG_BLUE);
         interactive=accepted;
         if(accepted)ui.postDelayed(()->{if(interactive)message.setVisibility(View.GONE);},1800);
-        else show("AZUL enviado, sin consumo confirmado · MENÚ > Diagnóstico");
+        else show("AZUL enviado, sin consumo confirmado · OK > Diagnóstico");
         ui.postDelayed(()->{
             if(foreground && hbbtv!=null)trace("Tras AZUL (2 s): "+hbbtv.snapshot());
         },2000);
@@ -158,9 +160,29 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     }
     @Override public void report(String text){
         trace(text);
-        if(text.startsWith("Error")||text.startsWith("No arrancó")||
-            text.startsWith("Sin respuesta")||text.startsWith("Navegador TCL rechazó"))
+        if(text.startsWith("Error") || text.startsWith("No arrancó")
+                || text.startsWith("Sin respuesta")
+                || text.startsWith("Navegador TCL rechazó")
+                || text.startsWith("Navegador TCL notificó")) {
             show(text);
+            showFailureDialog(text);
+        }
+    }
+
+    /** Automatically show failures using Android's focusable TV dialog window. */
+    private void showFailureDialog(String reason){
+        ui.post(()->{
+            if(!foreground || failureDialogShown || isFinishing())return;
+            failureDialogShown=true;
+            new AlertDialog.Builder(this)
+                .setTitle("O! · Fallo de HbbTV")
+                .setMessage(reason+"\n\nEl canal TDT sigue funcionando."+
+                    "\n\nPulsa DIAGNÓSTICO para ver el registro o COMPARTIR para enviarlo.")
+                .setPositiveButton("DIAGNÓSTICO",(d,w)->diagnostics())
+                .setNeutralButton("COMPARTIR",(d,w)->share())
+                .setNegativeButton("CERRAR",null)
+                .show();
+        });
     }
     private void stopEngine(){
         if(hbbtv!=null)hbbtv.close();
@@ -175,20 +197,23 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             .setNegativeButton("Cerrar",null).show();
     }
     private void menu(){
-        String[] actions={"Cambiar canal TDT","Pulsar AZUL","Resintonizar con HbbTV activo",
-            "Reiniciar motor HbbTV","Diagnóstico","Compartir registro",
-            "Abrir TV TCL original (comparar)"};
-        new AlertDialog.Builder(this).setTitle("O! · LOVEStv Lab").setItems(actions,(d,which)->{
-            switch(which){
-                case 0:showChannels();break;
-                case 1:blue();break;
-                case 2:retuneWithHbbtv();break;
-                case 3:stopEngine();startEngine();break;
-                case 4:diagnostics();break;
-                case 5:share();break;
-                case 6:originalTv();break;
-            }
-        }).show();
+        trace("Menú solicitado desde mando");
+        String[] actions={"Ver diagnóstico", "Compartir registro",
+            "Cambiar canal TDT", "Abrir LOVEStv (AZUL)",
+            "Reiniciar motor HbbTV", "Resintonizar con HbbTV activo",
+            "Comparar con TV original TCL"};
+        new AlertDialog.Builder(this).setTitle("O! 0.1.3 · MENÚ Y DIAGNÓSTICO")
+            .setItems(actions,(d,which)->{
+                switch(which){
+                    case 0:diagnostics();break;
+                    case 1:share();break;
+                    case 2:showChannels();break;
+                    case 3:blue();break;
+                    case 4:stopEngine();failureDialogShown=false;startEngine();break;
+                    case 5:retuneWithHbbtv();break;
+                    case 6:originalTv();break;
+                }
+            }).setNegativeButton("CERRAR",null).show();
     }
     /** Forces a fresh TDT tune while keeping the native HbbTV engine alive. */
     private void retuneWithHbbtv(){
@@ -210,25 +235,40 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             },5000);
         } catch(Throwable error){
             trace("Error durante resintonización: "+error);
-            show("Fallo al resintonizar · MENÚ > Diagnóstico");
+            show("Fallo al resintonizar · OK > Diagnóstico");
         }
     }
 
-    private void diagnostics(){
-        String title="Canal "+(position<0?"ninguno":channels.get(position).label())
-            +"\nVídeo "+hasVideo
-            +"\nHbbTV "+(hbbtv==null?"sin iniciar":hbbtv.isReady()?"preparado":"no preparado")
+    private String diagnosticText(){
+        return "O! LOVEStv Lab 0.1.3\n"
+            +"Canal: "+(position<0?"ninguno":channels.get(position).label())
+            +"\nVídeo: "+hasVideo
+            +"\nHbbTV: "+(hbbtv==null?"sin iniciar":hbbtv.isReady()?"preparado":"no preparado")
             +"\n"+(hbbtv==null?"Sin cliente nativo":hbbtv.snapshot())
-            +"\n\n"+history;
-        new AlertDialog.Builder(this).setTitle("O! · Diagnóstico")
-            .setMessage(title).setPositiveButton("Compartir",(d,w)->share())
-            .setNegativeButton("Cerrar",null).show();
+            +"\n\n--- Registro ---\n"+history;
+    }
+    private void diagnostics(){
+        new AlertDialog.Builder(this).setTitle("O! 0.1.3 · DIAGNÓSTICO")
+            .setMessage(diagnosticText())
+            .setPositiveButton("COMPARTIR",(d,w)->share())
+            .setNeutralButton("COPIAR",(d,w)->copyDiagnostics())
+            .setNegativeButton("CERRAR",null).show();
+    }
+    private void copyDiagnostics(){
+        try {
+            android.content.ClipboardManager clipboard=(android.content.ClipboardManager)
+                getSystemService(CLIPBOARD_SERVICE);
+            if(clipboard==null)throw new IllegalStateException("Portapapeles no disponible");
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                "O! Diagnóstico",diagnosticText()));
+            show("Diagnóstico copiado al portapapeles de la TCL");
+        }catch(Throwable e){show("No se pudo copiar el diagnóstico: "+e.getMessage());}
     }
     private void share(){
         Intent i=new Intent(Intent.ACTION_SEND);
         i.setType("text/plain");
         i.putExtra(Intent.EXTRA_SUBJECT,"O! LOVEStv TCL");
-        i.putExtra(Intent.EXTRA_TEXT,history.toString());
+        i.putExtra(Intent.EXTRA_TEXT,diagnosticText());
         try{startActivity(Intent.createChooser(i,"Compartir diagnóstico"));}
         catch(Throwable e){show("No se puede compartir el informe");}
     }
@@ -248,8 +288,15 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
         if(e.getAction()!=KeyEvent.ACTION_DOWN)return super.dispatchKeyEvent(e);
         if(e.getRepeatCount()>0&&used.contains(k))return true;
         boolean handled=true;
-        if(k==KeyEvent.KEYCODE_MENU||k==KeyEvent.KEYCODE_INFO)menu();
-        else if(k==KeyEvent.KEYCODE_PROG_BLUE||k==KeyEvent.KEYCODE_F4)blue();
+        // MENU and INFO are missing on some TCL remotes. OK / DOWN / BACK
+        // always open a focusable Android dialog outside interactive LOVEStv.
+        if(k==KeyEvent.KEYCODE_MENU || k==KeyEvent.KEYCODE_INFO ||
+                k==KeyEvent.KEYCODE_GUIDE || 
+                (!interactive && (k==KeyEvent.KEYCODE_DPAD_CENTER ||
+                    k==KeyEvent.KEYCODE_ENTER || k==KeyEvent.KEYCODE_DPAD_DOWN ||
+                    k==KeyEvent.KEYCODE_BACK))) {
+            menu();
+        } else if(k==KeyEvent.KEYCODE_PROG_BLUE||k==KeyEvent.KEYCODE_F4)blue();
         else if(k==KeyEvent.KEYCODE_CHANNEL_UP||k==KeyEvent.KEYCODE_CHANNEL_DOWN){
             if(!channels.isEmpty())tune(Math.floorMod(position+
                 (k==KeyEvent.KEYCODE_CHANNEL_UP?1:-1),channels.size()));
@@ -262,14 +309,14 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
                     showChannels();
                 }else handled=false;
             }
-        }else if(k==KeyEvent.KEYCODE_DPAD_CENTER||k==KeyEvent.KEYCODE_ENTER)showChannels();
+        }else if(k==KeyEvent.KEYCODE_DPAD_CENTER||k==KeyEvent.KEYCODE_ENTER)menu();
         else handled=false;
         if(handled){used.add(k);return true;}
         return super.dispatchKeyEvent(e);
     }
     private void show(String s){
         Log.i(TAG,"UI: "+s);
-        message.setText(s);
+        message.setText(s+(interactive?"":"\nOK / ↓ / ATRÁS: MENÚ · DIAGNÓSTICO"));
         message.setVisibility(View.VISIBLE);
     }
     private void trace(String s){
@@ -281,6 +328,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     @Override protected void onStop(){
         foreground=false;requestId++;
         used.clear();pendingBlue=false;
+        failureDialogShown=false;
         stopEngine();tv.setCallback(null);tv.reset();
         ui.removeCallbacksAndMessages(null);
         super.onStop();

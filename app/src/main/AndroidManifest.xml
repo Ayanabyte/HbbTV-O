@@ -9,7 +9,7 @@
         <package android:name="com.tcl.tvinput"/>
         <package android:name="com.tcl.android.webview"/>
     </queries>
-    <application android:label="O! LOVEStv Lab"
+    <application android:label="O! LOVEStv 0.1.3"
         android:icon="@android:drawable/ic_media_play"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:use32bitAbi="true"
