@@ -2,6 +2,8 @@ package com.ayanabyte.hbbtvo
 
 import android.app.Activity
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
 import android.view.ViewGroup
 import java.lang.reflect.InvocationHandler
@@ -61,14 +63,7 @@ class TclHbbtvEngine(
             say("HbbtvServer.init()=$initResult")
             if (initResult == false) error("El motor rechazó init")
             initialized = true
-            if (autoStartOnBrowser) {
-                runCatching {
-                    serverClass.getMethod(
-                        "setLivetvMode", Boolean::class.javaPrimitiveType
-                    ).invoke(server, true)
-                }.onSuccess { say("TVSDK: setLivetvMode(true)=$it") }
-                    .onFailure { say("TVSDK: modo LiveTV no activado: ${rootCause(it)}") }
-            }
+            say("TVSDK: esperando navegador antes de activar modo LiveTV")
 
             val browserClass = Class.forName("com.tcl.tbrowser.Tbrowser", true, activity.classLoader)
             val listenerClass = Class.forName("com.tcl.tbrowser.TbrowserInitEventListener", true, activity.classLoader)
@@ -83,6 +78,16 @@ class TclHbbtvEngine(
                         browserReady = true
                         if (autoStartOnBrowser) {
                             activity.runOnUiThread {
+                                val serverObj = server
+                                if (serverObj != null) {
+                                    runCatching {
+                                        serverObj.javaClass.getMethod(
+                                            "setLivetvMode",
+                                            Boolean::class.javaPrimitiveType
+                                        ).invoke(serverObj, true)
+                                    }.onSuccess { say("TVSDK: setLivetvMode(true) tras Tbrowser=$it") }
+                                        .onFailure { say("TVSDK: fallo modo LiveTV: ${rootCause(it)}") }
+                                }
                                 if (start()) afterStarted?.invoke()
                             }
                         }
@@ -93,7 +98,12 @@ class TclHbbtvEngine(
             browserClass.getMethod("setTbrowserInitEventListener", listenerClass).invoke(browser, browserListener)
             browserClass.getMethod("initTbrowser", Context::class.java, ViewGroup::class.java, Boolean::class.javaPrimitiveType)
                 .invoke(browser, activity, browserHost, false)
-            say("Inicialización de Tbrowser solicitada")
+            say("Inicialización de Tbrowser solicitada; esperando onSuccess")
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (initialized && !browserReady) {
+                    say("AVISO: Tbrowser no respondió en 12 s; start() y resintonización NO ejecutados")
+                }
+            }, 12000L)
         }.onFailure { say("Error inicialización: ${rootCause(it)}") }
     }
 

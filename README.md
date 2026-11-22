@@ -53,3 +53,7 @@ El botón **TVSDK + HbbTV** ejecuta una preparación comprobable sin clonar cred
 El experimento prioriza Antena 3 normal (no A3 UHD) cuando está disponible. Si el motor responde `start()=0` pero continúa `NO_EXIST`, no se informa falsamente de que LOVEStv funciona. Las aplicaciones oficiales TCL usan otros privilegios; `systemAuthorized(String)` está presente, pero esta APK no incorpora ni extrae credenciales privadas del fabricante. Ningún código de Channel+ se copia al proyecto.
 
 Logs: `logcat -d -v time -s HbbTVO:I '*:S' | tail -n 100`.
+
+## Secuencia de arranque corregida (0.1.7)
+
+A partir del diagnóstico 0.1.6 (se registró `HbbtvServer.init()=1` pero faltó `Tbrowser.onSuccess`), la prueba **TVSDK + HbbTV** prioriza `initTbrowser` y su callback. Solo después de recibir `onSuccess(true)` solicita `setLivetvMode(true)` y llama a `HbbtvServer.start()`. La secuencia posterior de resintonización y vigilancia de estado sigue igual. Un aviso de 12 segundos diferencia un navegador que no responde de un arranque que se ejecutó pero no detecta la AIT. Esta hipótesis se prueba sin afirmar que el cambio sea causa confirmada.

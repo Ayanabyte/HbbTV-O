@@ -77,7 +77,7 @@ class MainActivity : Activity() {
             setBackgroundColor(0xD9000000.toInt())
         }
         top.addView(TextView(this).apply {
-            text = "HbbTV O!  ·  0.1.6"
+            text = "HbbTV O!  ·  0.1.7"
             textSize = 23f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
