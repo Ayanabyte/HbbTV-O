@@ -63,9 +63,3 @@ A partir del diagnóstico 0.1.6 (se registró `HbbtvServer.init()=1` pero faltó
 El análisis del APK anterior Channel+ LOVEStv 1.45 confirma que su `ProbeActivity` usaba `android:process="com.tcl.tv"` bajo el UID no privilegiado de Channel+. Sus logs muestran `hbbtv_app_exist=1`, `EN_TCL_HBBTV_ON_NO_VOD` y carga de `hbbtv.lovestv.es` dentro de ese proceso. En HbbTV O! 0.1.8 se prueba **solo esta diferencia aislada**: `MainActivity` se declara en un proceso denominado `com.tcl.tv`, **manteniendo el paquete** `com.ayanabyte.hbbtvo`, su firma ordinaria y su propio UID. No concede permisos ni suplanta el UID de TCL. La actividad imprime el nombre de proceso real a través de `Application.getProcessName()` para contrastarlo con `ps -A`.
 
 Procedimiento: cerrar completamente la app antigua y cualquier experimento que comparta proceso, abrir HbbTV O! y pulsar `TVSDK + HbbTV`. Buscar `HbbTV estado`, `hbbtv_app_exist`, `LOAD_PAGE_START` y `EN_TCL_HBBTV_ON_NO_VOD`. Una coincidencia del nombre de proceso por sí sola no garantiza activación de HbbTV.
-
-## Comparación con el canal exacto de Channel+ (0.1.9)
-
-Los logs originales de Channel+ (22-11-2026, 15:32:40) muestran carga real de LOVEStv en la señal `c=antena3uhd`, con `hbbtv_app_exist=1` y HbbTV `ON_NO_VOD`. La prueba HbbTV O! 0.1.8 se hizo en `Antena 3` sin UHD y solo probó el cambio de proceso. Esta versión prioriza una variante de Antena 3 UHD de la lista **real** TIF, y solo recurre a Antena 3 normal si UHD no está disponible. Antes de arrancar, registra la identidad DVB y el canal elegido, para evitar conclusiones si el servicio difiere del de Channel+.
-
-El parámetro web `ch=149` no se trata como ID DVB ni se codifica en el sintonizador. No se modifica la secuencia de inicialización del motor de la versión 0.1.8.

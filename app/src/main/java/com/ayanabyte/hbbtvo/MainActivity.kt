@@ -79,7 +79,7 @@ class MainActivity : Activity() {
             setBackgroundColor(0xD9000000.toInt())
         }
         top.addView(TextView(this).apply {
-            text = "HbbTV O!  ·  0.1.9"
+            text = "HbbTV O!  ·  0.1.8"
             textSize = 23f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
@@ -230,15 +230,6 @@ class MainActivity : Activity() {
             ui.post {
                 if (isFinishing || isDestroyed || generation != bootGeneration) return@post
                 lines.forEach(::note)
-                note("Canal de prueba: ${channel.name} · TIF ID=${channel.id}; referencia Channel+ usaba 'c=antena3uhd'")
-                thread(name = "hbbtvo-reference-channel") {
-                    val dvbLines = TclChannelInspector(this@MainActivity).inspect(channel)
-                    ui.post {
-                        if (!isFinishing && !isDestroyed && generation == bootGeneration) {
-                            dvbLines.forEach(::note)
-                        }
-                    }
-                }
                 note("TVSDK: iniciando motor TCL con modo televisión en directo")
                 bridge.initialize(videoAvailable, autoStartOnBrowser = true) {
                     if (generation != bootGeneration || isFinishing || isDestroyed) return@initialize
@@ -308,11 +299,6 @@ class MainActivity : Activity() {
                     channels = entries
                     note("Canales terrestres detectados=${entries.size}")
                     if (entries.isNotEmpty()) {
-                        val a3Uhd = entries.indexOfFirst {
-                            val name = it.name.lowercase()
-                            ("antena 3" in name || "antena3" in name || "a3" in name) &&
-                                "uhd" in name
-                        }
                         val normalA3 = entries.indexOfFirst {
                             it.name.contains("Antena 3", ignoreCase = true) &&
                                 !it.name.contains("UHD", ignoreCase = true)
@@ -321,13 +307,7 @@ class MainActivity : Activity() {
                             it.name.contains("Antena 3", ignoreCase = true) ||
                                 it.name.contains("A3 UHD", ignoreCase = true)
                         }
-                        val chosen = when {
-                            a3Uhd >= 0 -> a3Uhd
-                            normalA3 >= 0 -> normalA3
-                            else -> fallbackA3
-                        }
-                        note("Referencia Channel+: LOVEStv sobre Antena 3 UHD (c=antena3uhd). " +
-                            "Canal UHD disponible=${a3Uhd >= 0}; seleccionado=${entries.getOrNull(chosen)?.name ?: "primero"}")
+                        val chosen = if (normalA3 >= 0) normalA3 else fallbackA3
                         tune(if (chosen >= 0) chosen else 0)
                     } else status.text = "No se encontraron canales TDT accesibles"
                 }.onFailure { error ->
