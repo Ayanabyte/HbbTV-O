@@ -5,18 +5,15 @@ plugins {
 
 android {
     namespace = "com.ayanabyte.hbbtvo"
-    compileSdk = 34
+    compileSdk = 33
 
     defaultConfig {
-        applicationId = "com.ayanabyte.hbbtvo.live"
+        applicationId = "com.ayanabyte.hbbtvo"
         minSdk = 26
         targetSdk = 30
-        versionCode = 15
-        versionName = "0.2.1"
-        ndk { abiFilters += "armeabi-v7a" }
+        versionCode = 1
+        versionName = "1.0.0"
     }
-
-    externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
