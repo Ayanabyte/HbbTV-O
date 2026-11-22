@@ -83,6 +83,30 @@ final class TclHbbtvClient {
         }catch(Throwable error){fail("No arrancó HbbtvServer.start",error);}
     }
 
+    /** State and browser visibility are diagnostic only, not proof that LOVEStv loaded. */
+    String snapshot() {
+        String state;
+        if(engine==null) state="no creado";
+        else try { state=String.valueOf(invoke(engine,"getState")); }
+        catch(Throwable error) { state="no disponible ("+reason(error)+")"; }
+        StringBuilder tree=new StringBuilder();
+        tree.append("vistas=").append(layer.getChildCount());
+        appendViews(layer,tree,0);
+        return "estado HbbTV="+state+", navegador="+tree;
+    }
+
+    private static void appendViews(ViewGroup root,StringBuilder out,int depth) {
+        if(depth>=2)return;
+        for(int i=0;i<root.getChildCount() && i<6;i++) {
+            android.view.View child=root.getChildAt(i);
+            out.append(" [").append(child.getClass().getSimpleName())
+                .append(" visible=").append(child.getVisibility()==android.view.View.VISIBLE)
+                .append(" size=").append(child.getWidth()).append("x")
+                .append(child.getHeight()).append("]");
+            if(child instanceof ViewGroup)appendViews((ViewGroup)child,out,depth+1);
+        }
+    }
+
     boolean sendKey(int key) {
         if(!isReady()){report("Motor no preparado para tecla "+key);return false;}
         Integer vendor=keyCodes.get(key);
@@ -90,9 +114,12 @@ final class TclHbbtvClient {
         try {
             Object answer=engine.getClass().getMethod("handleKey",int.class,int.class)
                 .invoke(engine,vendor,0);
-            boolean accepted=Boolean.TRUE.equals(answer);
-            report("Tecla Android "+key+" → TCL "+vendor+" · aceptada="+accepted);
-            return accepted;
+            boolean consumed=Boolean.TRUE.equals(answer);
+            String type=answer==null?"null":answer.getClass().getSimpleName();
+            report("Tecla Android "+key+" → TCL "+vendor+
+                " · respuesta="+answer+" ("+type+") · consumida="+consumed);
+            report("Después de tecla: "+snapshot());
+            return consumed;
         }catch(Throwable error){report("Error tecla: "+reason(error));return false;}
     }
 
