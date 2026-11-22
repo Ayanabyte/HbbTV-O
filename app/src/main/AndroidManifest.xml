@@ -7,6 +7,12 @@
     <uses-feature android:name="android.software.leanback" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
+    <queries>
+        <package android:name="com.tcl.android.webview" />
+        <package android:name="com.tcl.tv" />
+        <package android:name="com.tcl.tvinput" />
+    </queries>
+
     <application
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:label="HbbTV O!"
@@ -16,6 +22,9 @@
 
         <uses-library android:name="com.tcl.hbbtv.HbbtvServer" android:required="false" />
         <uses-library android:name="com.tcl.tbrowser" android:required="false" />
+        <uses-library android:name="com.tcl.os.system" android:required="false" />
+        <uses-library android:name="com.tcl.deviceinfo" android:required="false" />
+        <uses-native-library android:name="libsitatv.so" android:required="false" />
         <uses-library android:name="com.tcl.tvmanager" android:required="false" />
         <uses-native-library android:name="libcom_tcl_hbbtv_jni.tcl.so" android:required="false" />
         <uses-native-library android:name="libcom_tcl_tbrowser_jni.tcl.so" android:required="false" />

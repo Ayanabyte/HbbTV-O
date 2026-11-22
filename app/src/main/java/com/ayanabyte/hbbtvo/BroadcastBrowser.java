@@ -24,16 +24,21 @@ final class BroadcastBrowser {
     private final Handler main=new Handler(Looper.getMainLooper());
     private final Map<Integer,Integer> keys=new HashMap<>();
     private Object engine,browser;
+    private static native int pointerBits();
+    private final Consumer<Boolean> blueResult;
     private boolean closed,running,queuedBlue;
     private final String design;
-    BroadcastBrowser(Activity activity,FrameLayout root,String design,Consumer<String> notice) {
+    BroadcastBrowser(Activity activity,FrameLayout root,String design,Consumer<String> notice,Consumer<Boolean> blueResult) {
         this.windowContext=activity;
         this.root=root;
         this.design=design;
         this.notice=notice;
+        this.blueResult=blueResult;
     }
     void start() {
         try {
+            System.loadLibrary("receiver");
+            Log.i(TAG,"Iniciando HbbTV: proceso de "+pointerBits()+" bits");
             engine=singleton("com.tcl.hbbtv.HbbtvServer");
             checkResult(call(engine,"init"));
             prepareKeys();
@@ -65,7 +70,10 @@ final class BroadcastBrowser {
             checkResult(call(engine,"start"));
             running=true;
             applyDesign();
-            if(queuedBlue) sendKey(KeyEvent.KEYCODE_PROG_BLUE);
+            if(queuedBlue) {
+                queuedBlue=false;
+                blueResult.accept(sendKey(KeyEvent.KEYCODE_PROG_BLUE));
+            }
         } catch(Exception | LinkageError e) { fail("No se pudo abrir el servicio HbbTV",e); }
     }
     private WebView webView(View view) {
@@ -86,12 +94,17 @@ final class BroadcastBrowser {
             page.evaluateJavascript(design,null);
         main.postDelayed(this::applyDesign,2000);
     }
+    void openBlue() {
+        if (closed) return;
+        if (running) blueResult.accept(sendKey(KeyEvent.KEYCODE_PROG_BLUE));
+        else {
+            queuedBlue=true;
+            notice.accept("Azul recibido. Esperando al navegador TCL…");
+        }
+    }
     boolean sendKey(int code) {
         if(closed) return false;
-        if(!running) {
-            if(code==KeyEvent.KEYCODE_PROG_BLUE) queuedBlue=true;
-            return queuedBlue && code==KeyEvent.KEYCODE_PROG_BLUE;
-        }
+        if(!running) return false;
         Integer vendorCode=keys.get(code);
         if(vendorCode==null) return false;
         try {
@@ -103,7 +116,9 @@ final class BroadcastBrowser {
         if(closed) return;
         Log.w(TAG,reason,e);
         close();
-        notice.accept(reason);
+        Throwable cause=e;
+        while(cause!=null && cause.getCause()!=null && cause!=cause.getCause()) cause=cause.getCause();
+        notice.accept(cause==null ? reason : reason+" · "+cause);
     }
     void close() {
         if(closed) return;

@@ -19,6 +19,7 @@ class MainActivity : Activity() {
     private var channels = emptyList<TvChannelRepository.Channel>()
     private var index = 0
     private var hasVideo = false
+    private var browserStatus = ""
     private var interactive = false
     private var active = false
     private var loadId = 0
@@ -96,10 +97,16 @@ class MainActivity : Activity() {
     }
 
     private fun startBrowser() {
-        browser = BroadcastBrowser(this, browserLayer, design) { message ->
+        browserStatus = ""
+        browser = BroadcastBrowser(this, browserLayer, design, { message ->
+            browserStatus = message
             interactive = false
             notice(message)
-        }.also { it.start() }
+        }, { accepted ->
+            interactive = accepted
+            android.util.Log.i("HbbTVO", "Azul procesado por TCL: $accepted")
+            if (!accepted && browser?.isClosed == false) notice("El servicio HbbTV del canal ha rechazado la tecla azul")
+        }).also { it.start() }
     }
 
     private fun stopBrowser() {
@@ -108,13 +115,25 @@ class MainActivity : Activity() {
         interactive = false
     }
 
+    private fun openLoveTv() {
+        android.util.Log.i("HbbTVO", "Azul recibido: canal=${channels.getOrNull(index)?.name} video=$hasVideo")
+        if (!hasVideo) notice("Espera a que aparezca el canal TDT")
+        else {
+            if (browser == null || browser?.isClosed == true) startBrowser()
+            if (browser?.isClosed == true) {
+                AlertDialog.Builder(this).setTitle("LOVEStv").setMessage(browserStatus)
+                    .setPositiveButton("Aceptar", null).show()
+            } else browser?.openBlue()
+        }
+    }
+
     private fun channelList() {
         if (channels.isEmpty()) { loadChannels(); return }
         AlertDialog.Builder(this).setTitle("Canales TDT")
             .setSingleChoiceItems(channels.map { it.name }.toTypedArray(), index) { dialog, i ->
                 dialog.dismiss()
                 tune(i)
-            }.show()
+            }.setNeutralButton("Abrir LOVEStv") { _, _ -> openLoveTv() }.show()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -132,14 +151,7 @@ class MainActivity : Activity() {
                     if (hasVideo) startBrowser()
                 }
             }
-            key == KeyEvent.KEYCODE_PROG_BLUE -> {
-                if (!hasVideo) notice("Espera a que aparezca el canal TDT")
-                else {
-                    if (browser == null || browser?.isClosed == true) startBrowser()
-                    interactive = browser?.sendKey(key) == true
-                    if (!interactive && browser?.isClosed == false) notice("El canal aún no ha aceptado la tecla azul")
-                }
-            }
+            key == KeyEvent.KEYCODE_PROG_BLUE -> openLoveTv()
             interactive && browser?.sendKey(key) == true -> Unit
             key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER -> channelList()
             key == KeyEvent.KEYCODE_CHANNEL_UP || key == KeyEvent.KEYCODE_CHANNEL_DOWN ->
