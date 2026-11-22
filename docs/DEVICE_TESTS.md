@@ -33,11 +33,18 @@ La APK nueva comprueba disponibilidad de componentes TCL por APIs públicas y ab
 
 La prueba se detuvo en la entrada de la TV original. No se cambió el canal ni se envió Azul desde esa prueba de aceptación; esos pasos requieren el mando del televisor. Así que la ejecución confirma el diagnóstico y la derivación, no la apertura de LOVEStv desde HbbTV O!.
 
+## Resultado manual posterior
+
+El informe privado guardado en la TV registra `LOVEStv se abrió (indicado manualmente)` a las 18:54:40 del 22 de noviembre de 2026. El registro de actividad confirma que el botón de O! abrió `com.tcl.tv/.TVActivity` a las 18:54:04. Tomo el estado del informe como una confirmación manual del usuario de que LOVEStv apareció dentro de la TV original.
+
+El registro de ese intervalo no conserva una URL ni el evento `LOAD_PAGE_END` de LOVEStv, y el informe no indica qué canal se seleccionó. Por tanto, esta actualización no afirma que O! haya iniciado el servicio ni aporta una verificación visual independiente. Falta comprobar y anotar el canal, navegar el menú, abrir contenido, volver al directo y repetir la salida y reapertura.
+
 ## Aceptación pendiente
 
 - Instalar y abrir la APK con identificador `com.ayanabyte.hbbtvo` en la TCL.
 - Comprobar cada acción de diagnóstico y el informe.
-- Abrir TV TCL, seleccionar Antena 3 y pulsar Azul manualmente; volver y anotar el resultado.
+- Confirmar si el resultado manual guardado fue en Antena 3; repetir allí si fue otro canal o no se recuerda.
+- Navegar el menú de LOVEStv, reproducir contenido, regresar al directo y volver a abrirlo tras salir.
 - Repetir manualmente en RTVE y Mediaset si se solicita.
 
-Hasta completar esos pasos desde la APK nueva, no se declara que HbbTV O! abra o navegue por LOVEStv.
+HbbTV O! delega al reproductor de la TV original; la carga y navegación de LOVEStv no se atribuyen a una integración interna de O!.
