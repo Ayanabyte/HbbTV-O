@@ -2,8 +2,11 @@ package com.ayanabyte.hbbtvo
 
 import android.app.Activity
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.StateListDrawable
 import android.media.tv.TvView
 import android.os.Bundle
 import android.os.Handler
@@ -70,7 +73,7 @@ class MainActivity : Activity() {
             setBackgroundColor(0xD9000000.toInt())
         }
         top.addView(TextView(this).apply {
-            text = "HbbTV O!  ·  0.1.0"
+            text = "HbbTV O!  ·  0.1.1"
             textSize = 23f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
@@ -119,15 +122,51 @@ class MainActivity : Activity() {
     }
 
     private fun addAction(name: String, run: () -> Unit) {
+        val normal = actionBackground(0xFF18212B.toInt(), 0xFF607789.toInt())
+        val focused = actionBackground(0xFF55DBFF.toInt(), Color.WHITE)
+        val pressed = actionBackground(0xFF2CC8F2.toInt(), Color.WHITE)
+        val backgrounds = StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_pressed), pressed)
+            addState(intArrayOf(android.R.attr.state_focused), focused)
+            addState(intArrayOf(), normal)
+        }
         val button = Button(this).apply {
             text = name
             isAllCaps = false
+            textSize = 16f
+            setTypeface(typeface, Typeface.BOLD)
+            background = backgrounds
+            backgroundTintList = null
+            stateListAnimator = null
+            setPadding(dp(18), 0, dp(18), 0)
+            setTextColor(ColorStateList(
+                arrayOf(
+                    intArrayOf(android.R.attr.state_pressed),
+                    intArrayOf(android.R.attr.state_focused),
+                    intArrayOf()
+                ),
+                intArrayOf(Color.BLACK, Color.BLACK, Color.WHITE)
+            ))
+            setOnFocusChangeListener { view, hasFocus ->
+                view.scaleX = if (hasFocus) 1.06f else 1f
+                view.scaleY = if (hasFocus) 1.08f else 1f
+                view.elevation = if (hasFocus) dp(10).toFloat() else 0f
+            }
+            isFocusable = true
             setOnClickListener { run() }
         }
         actions.addView(button, LinearLayout.LayoutParams(-2, dp(54)).apply {
-            rightMargin = dp(8)
+            rightMargin = dp(10)
         })
     }
+
+    private fun actionBackground(fill: Int, stroke: Int): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(10).toFloat()
+            setColor(fill)
+            setStroke(dp(2), stroke)
+        }
 
     private fun checkPermissionAndLoad() {
         if (checkSelfPermission(TV_LISTINGS_PERMISSION) == PackageManager.PERMISSION_GRANTED) {
