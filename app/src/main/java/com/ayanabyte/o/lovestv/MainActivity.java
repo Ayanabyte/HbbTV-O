@@ -146,7 +146,10 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
         boolean accepted=hbbtv.sendKey(KeyEvent.KEYCODE_PROG_BLUE);
         interactive=accepted;
         if(accepted)ui.postDelayed(()->{if(interactive)message.setVisibility(View.GONE);},1800);
-        else show("TCL no aceptó AZUL · MENÚ > Diagnóstico");
+        else show("AZUL enviado, sin consumo confirmado · MENÚ > Diagnóstico");
+        ui.postDelayed(()->{
+            if(foreground && hbbtv!=null)trace("Tras AZUL (2 s): "+hbbtv.snapshot());
+        },2000);
     }
     @Override public void ready(){
         trace("Motor HbbTV preparado");
@@ -172,23 +175,50 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             .setNegativeButton("Cerrar",null).show();
     }
     private void menu(){
-        String[] actions={"Cambiar canal TDT","Pulsar AZUL","Reiniciar motor HbbTV",
-            "Diagnóstico","Compartir registro","Abrir TV TCL original (comparar)"};
+        String[] actions={"Cambiar canal TDT","Pulsar AZUL","Resintonizar con HbbTV activo",
+            "Reiniciar motor HbbTV","Diagnóstico","Compartir registro",
+            "Abrir TV TCL original (comparar)"};
         new AlertDialog.Builder(this).setTitle("O! · LOVEStv Lab").setItems(actions,(d,which)->{
             switch(which){
                 case 0:showChannels();break;
                 case 1:blue();break;
-                case 2:stopEngine();startEngine();break;
-                case 3:diagnostics();break;
-                case 4:share();break;
-                case 5:originalTv();break;
+                case 2:retuneWithHbbtv();break;
+                case 3:stopEngine();startEngine();break;
+                case 4:diagnostics();break;
+                case 5:share();break;
+                case 6:originalTv();break;
             }
         }).show();
     }
+    /** Forces a fresh TDT tune while keeping the native HbbTV engine alive. */
+    private void retuneWithHbbtv(){
+        if(position<0 || hbbtv==null || !hbbtv.isReady()){
+            show("Inicia el motor HbbTV y espera a que esté preparado.");return;
+        }
+        TvChannels.Channel ch=channels.get(position);
+        trace("PRUEBA: nueva sintonización con motor HbbTV iniciado");
+        trace("Antes de resintonizar: "+hbbtv.snapshot());
+        hasVideo=false;
+        interactive=false;
+        tv.reset();
+        try {
+            tv.tune(ch.input,ch.uri());
+            show("Resintonizando "+ch.label()+" con HbbTV activo; luego pulsa AZUL");
+            ui.postDelayed(()->{
+                if(foreground && hbbtv!=null && current()==ch.id)
+                    trace("Después de resintonizar (5 s): "+hbbtv.snapshot()+" · video="+hasVideo);
+            },5000);
+        } catch(Throwable error){
+            trace("Error durante resintonización: "+error);
+            show("Fallo al resintonizar · MENÚ > Diagnóstico");
+        }
+    }
+
     private void diagnostics(){
         String title="Canal "+(position<0?"ninguno":channels.get(position).label())
             +"\nVídeo "+hasVideo
             +"\nHbbTV "+(hbbtv==null?"sin iniciar":hbbtv.isReady()?"preparado":"no preparado")
+            +"\n"+(hbbtv==null?"Sin cliente nativo":hbbtv.snapshot())
             +"\n\n"+history;
         new AlertDialog.Builder(this).setTitle("O! · Diagnóstico")
             .setMessage(title).setPositiveButton("Compartir",(d,w)->share())
