@@ -1,6 +1,5 @@
 package com.ayanabyte.o.lovestv;
 
-import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
@@ -59,8 +58,8 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
 
     @Override protected void onStart(){
         super.onStart();foreground=true;
-        if(checkSelfPermission(Manifest.permission.READ_TV_LISTINGS)!=PackageManager.PERMISSION_GRANTED)
-            requestPermissions(new String[]{Manifest.permission.READ_TV_LISTINGS},PERMISSION_REQUEST);
+        if(checkSelfPermission("android.permission.READ_TV_LISTINGS")!=PackageManager.PERMISSION_GRANTED)
+            requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},PERMISSION_REQUEST);
         else loadChannels();
     }
     @Override public void onRequestPermissionsResult(int req,String[] p,int[] r){
