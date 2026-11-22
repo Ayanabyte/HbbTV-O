@@ -1,6 +1,5 @@
 package com.ayanabyte.hbbtvo
 
-import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -131,10 +130,10 @@ class MainActivity : Activity() {
     }
 
     private fun checkPermissionAndLoad() {
-        if (checkSelfPermission(Manifest.permission.READ_TV_LISTINGS) == PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(TV_LISTINGS_PERMISSION) == PackageManager.PERMISSION_GRANTED) {
             discoverChannels()
         } else {
-            requestPermissions(arrayOf(Manifest.permission.READ_TV_LISTINGS), REQUEST_TV)
+            requestPermissions(arrayOf(TV_LISTINGS_PERMISSION), REQUEST_TV)
         }
     }
 
@@ -207,5 +206,8 @@ class MainActivity : Activity() {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
 
-    companion object { private const val REQUEST_TV = 20 }
+    companion object {
+        private const val REQUEST_TV = 20
+        private const val TV_LISTINGS_PERMISSION = "android.permission.READ_TV_LISTINGS"
+    }
 }
