@@ -6,7 +6,7 @@ Aplicación Android TV independiente, escrita en Kotlin, para recibir canales TD
 
 1. Instala la APK en el televisor TCL y concede el permiso para consultar la lista de canales.
 2. Espera a que aparezca la imagen de un canal TDT compatible con HbbTV.
-3. Pulsa **Abrir LOVEStv**. La app inicializa el navegador HbbTV del televisor, conserva el canal sintonizado y envía la tecla azul.
+3. Pulsa **Abrir LOVEStv**. La app activa los ajustes HbbTV de TCL si están apagados, inicializa el navegador, conserva el canal sintonizado y envía la tecla azul.
 4. El botón **Azul** permite volver a enviar esa tecla. **Estado HbbTV** muestra el estado informado por las bibliotecas TCL.
 
 La app selecciona Antena 3 cuando está disponible; si no, sintoniza el primer canal TDT encontrado. También permite cambiar al canal anterior o siguiente.

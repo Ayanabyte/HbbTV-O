@@ -79,7 +79,7 @@ class MainActivity : Activity() {
             setBackgroundColor(0xD9000000.toInt())
         }
         (topPanel as LinearLayout).addView(TextView(this).apply {
-            text = "HbbTV O!  ·  0.1.11"
+            text = "HbbTV O!  ·  0.1.12"
             textSize = 23f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
@@ -193,12 +193,20 @@ class MainActivity : Activity() {
             return
         }
         val generation = ++bootGeneration
-        note("LOVEStv: iniciando HbbTV en ${channel.name}; se conserva la sintonización TDT")
-        bridge.initialize(videoAvailable, autoStartOnBrowser = true) {
-            if (generation != bootGeneration || isFinishing || isDestroyed) return@initialize
-            note("Motor HbbTV iniciado en ${channel.name}. Enviando tecla azul; todavía se comprobará si TCL activa una aplicación.")
-            bridge.emitBlue()
-            monitorHbbtvState(generation, 0, null)
+        note("LOVEStv: comprobando los ajustes HbbTV de TCL en ${channel.name}")
+        thread(name = "hbbtvo-enable-hbbtv") {
+            val settings = TclStartupProbe(this).enableHbbtv()
+            ui.post {
+                if (generation != bootGeneration || isFinishing || isDestroyed) return@post
+                settings.forEach(::note)
+                note("LOVEStv: iniciando el motor y conservando la sintonización TDT")
+                bridge.initialize(videoAvailable, autoStartOnBrowser = true) {
+                    if (generation != bootGeneration || isFinishing || isDestroyed) return@initialize
+                    note("Motor HbbTV iniciado en ${channel.name}. Enviando tecla azul; se comprobará el estado que informa TCL.")
+                    bridge.emitBlue()
+                    monitorHbbtvState(generation, 0, null)
+                }
+            }
         }
     }
 

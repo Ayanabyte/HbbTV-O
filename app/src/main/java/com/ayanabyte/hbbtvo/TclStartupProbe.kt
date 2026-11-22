@@ -29,6 +29,31 @@ class TclStartupProbe(private val context: Context) {
             cause.javaClass.simpleName + ": " + (cause.message ?: "sin detalle")
         }
 
+    /** Enables the two TCL HbbTV switches before starting the browser runtime. */
+    fun enableHbbtv(): List<String> {
+        val report = mutableListOf<String>()
+        runCatching {
+            val cls = Class.forName("com.tcl.tvmanager.TTvFunctionManager", true, context.classLoader)
+            val manager = cls.getMethod("getInstance", Context::class.java).invoke(null, context)
+            val getter = cls.getMethod("isHbbtvOn")
+            val before = getter.invoke(manager)
+            if (before != true) cls.getMethod("setHbbtvOn", Boolean::class.javaPrimitiveType)
+                .invoke(manager, true)
+            report += "TCL HbbTV: isHbbtvOn $before → ${getter.invoke(manager)}"
+        }.onFailure { report += "TCL HbbTV: no se pudo activar isHbbtvOn (${rootCause(it)})" }
+
+        runCatching {
+            val cls = Class.forName("tvos.tv.hbbtv.THbbtvManager", true, context.classLoader)
+            val manager = cls.getMethod("getInstance", Context::class.java).invoke(null, context)
+            val getter = cls.getMethod("getEnable")
+            val before = getter.invoke(manager)
+            if (before != true) cls.getMethod("setEnable", Boolean::class.javaPrimitiveType)
+                .invoke(manager, true)
+            report += "TCL HbbTV: getEnable $before → ${getter.invoke(manager)}"
+        }.onFailure { report += "TCL HbbTV: no se pudo activar el gestor (${rootCause(it)})" }
+        return report
+    }
+
     fun snapshot(): Snapshot {
         val server = safely {
             val cls = Class.forName("com.tcl.hbbtv.HbbtvServer", true, context.classLoader)
@@ -51,5 +76,11 @@ class TclStartupProbe(private val context: Context) {
             cls.getMethod("getEnable").invoke(inst)
         }
         return Snapshot(server, manager, setting, enabled)
+    }
+
+    private fun rootCause(error: Throwable): String {
+        var current = error
+        while (current.cause != null && current.cause !== current) current = current.cause!!
+        return "${current.javaClass.simpleName}: ${current.message ?: "sin detalle"}"
     }
 }
