@@ -37,6 +37,7 @@ class MainActivity : Activity() {
     private var videoAvailable = false
     private val ui = Handler(Looper.getMainLooper())
     private val messages = ArrayDeque<String>()
+    private var bootGeneration = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,7 +77,7 @@ class MainActivity : Activity() {
             setBackgroundColor(0xD9000000.toInt())
         }
         top.addView(TextView(this).apply {
-            text = "HbbTV O!  ·  0.1.5"
+            text = "HbbTV O!  ·  0.1.6"
             textSize = 23f
             setTextColor(Color.WHITE)
             setTypeface(typeface, Typeface.BOLD)
@@ -125,6 +126,8 @@ class MainActivity : Activity() {
         addAction("Analizar TCL") { bridge.inspect() }
         addAction("Contexto DVB") { inspectDvbChannel() }
         addAction("Permisos TCL") { inspectPermissions() }
+        addAction("TVSDK + HbbTV") { runFullTclExperiment() }
+        addAction("Estado TCL") { reportTclStartupState() }
         addAction("HbbTV ON") { enableTclHbbtv() }
         addAction("Gestor ON") { enableTclManager() }
         addAction("Iniciar motor") { bridge.initialize(videoAvailable) }
@@ -200,6 +203,66 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun reportTclStartupState() {
+        val state = TclStartupProbe(this).snapshot()
+        note("Estado TCL: ${state.summary()}")
+    }
+
+    /**
+     * Experimental sequence based on observed TCL initialization behavior:
+     * TVSDK capability preflight -> native live mode -> browser ready -> HbbTV
+     * start -> re-tune same DVB program -> bounded native state observation.
+     * No platform UID, signature spoofing or OEM credentials.
+     */
+    private fun runFullTclExperiment() {
+        val channel = channels.getOrNull(selectedIndex)
+        if (!videoAvailable || channel == null) {
+            note("TVSDK: primero debe verse el canal TDT")
+            return
+        }
+        val generation = ++bootGeneration
+        note("=== Prueba completa TVSDK → HbbTV (canal=${channel.name}) ===")
+        thread(name = "hbbtvo-tvsdk-check") {
+            val lines = TclStartupProbe(this).preflight()
+            ui.post {
+                if (isFinishing || isDestroyed || generation != bootGeneration) return@post
+                lines.forEach(::note)
+                note("TVSDK: iniciando motor TCL con modo televisión en directo")
+                bridge.initialize(videoAvailable, autoStartOnBrowser = true) {
+                    if (generation != bootGeneration || isFinishing || isDestroyed) return@initialize
+                    note("HbbTV: start invocado; preparando segunda sintonización")
+                    monitorHbbtvState(generation, 0, null)
+                    ui.postDelayed({
+                        if (!isFinishing && !isDestroyed && generation == bootGeneration) {
+                            val position = channels.indexOfFirst { it.id == channel.id }
+                            if (position >= 0) {
+                                note("DVB: reset de sesión y resintonización con HbbTV ya iniciado")
+                                tvView.reset()
+                                tune(position)
+                            } else note("DVB: canal original ya no figura en el listado")
+                        }
+                    }, 1250L)
+                }
+            }
+        }
+    }
+
+    private fun monitorHbbtvState(generation: Int, attempt: Int, previous: String?) {
+        if (generation != bootGeneration || isFinishing || isDestroyed) return
+        val snapshot = TclStartupProbe(this).snapshot()
+        val summary = snapshot.summary()
+        if (summary != previous) note("HbbTV estado +${attempt * 2}s: $summary")
+        if (snapshot.isActive()) {
+            note("=== Estado HbbTV activo detectado: ${snapshot.serverState} / ${snapshot.managerState} ===")
+            return
+        }
+        if (attempt >= 15) {
+            note("HbbTV: sin transición activa tras 30 s; revisar AIT/registro TVSDK")
+            return
+        }
+        ui.postDelayed({ monitorHbbtvState(generation, attempt + 1, summary) }, 2000L)
+    }
+
     private fun enableTclHbbtv() {
         note("Solicitando HbbTV ON a TCL…")
         thread(name = "hbbtvo-hbbtv-switch") {
@@ -233,8 +296,16 @@ class MainActivity : Activity() {
                     channels = entries
                     note("Canales terrestres detectados=${entries.size}")
                     if (entries.isNotEmpty()) {
-                        val preferred = entries.indexOfFirst { (it.name.contains("Antena 3", ignoreCase = true) || it.name.contains("A3 UHD", ignoreCase = true)) }
-                        tune(if (preferred >= 0) preferred else 0)
+                        val normalA3 = entries.indexOfFirst {
+                            it.name.contains("Antena 3", ignoreCase = true) &&
+                                !it.name.contains("UHD", ignoreCase = true)
+                        }
+                        val fallbackA3 = entries.indexOfFirst {
+                            it.name.contains("Antena 3", ignoreCase = true) ||
+                                it.name.contains("A3 UHD", ignoreCase = true)
+                        }
+                        val chosen = if (normalA3 >= 0) normalA3 else fallbackA3
+                        tune(if (chosen >= 0) chosen else 0)
                     } else status.text = "No se encontraron canales TDT accesibles"
                 }.onFailure { error ->
                     note("Error leyendo TV provider: ${error.javaClass.simpleName}: ${error.message}")
@@ -304,6 +375,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        bootGeneration++
         bridge.shutdown()
         tvView.reset()
         super.onDestroy()

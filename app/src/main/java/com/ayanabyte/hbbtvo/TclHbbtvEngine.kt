@@ -38,13 +38,18 @@ class TclHbbtvEngine(
             }
     }
 
-    fun initialize(videoAvailable: Boolean) {
+    fun initialize(
+        videoAvailable: Boolean,
+        autoStartOnBrowser: Boolean = false,
+        afterStarted: (() -> Unit)? = null
+    ) {
         if (!videoAvailable) {
             say("Esperando onVideoAvailable del canal TDT")
             return
         }
         if (initialized) {
             say("Motor inicializado: navegador listo=$browserReady; arrancado=$started")
+            if (autoStartOnBrowser && browserReady && start()) afterStarted?.invoke()
             return
         }
         runCatching {
@@ -56,6 +61,14 @@ class TclHbbtvEngine(
             say("HbbtvServer.init()=$initResult")
             if (initResult == false) error("El motor rechazó init")
             initialized = true
+            if (autoStartOnBrowser) {
+                runCatching {
+                    serverClass.getMethod(
+                        "setLivetvMode", Boolean::class.javaPrimitiveType
+                    ).invoke(server, true)
+                }.onSuccess { say("TVSDK: setLivetvMode(true)=$it") }
+                    .onFailure { say("TVSDK: modo LiveTV no activado: ${rootCause(it)}") }
+            }
 
             val browserClass = Class.forName("com.tcl.tbrowser.Tbrowser", true, activity.classLoader)
             val listenerClass = Class.forName("com.tcl.tbrowser.TbrowserInitEventListener", true, activity.classLoader)
@@ -66,7 +79,14 @@ class TclHbbtvEngine(
                 InvocationHandler { proxy, method, args ->
                     if (method.declaringClass == Any::class.java) return@InvocationHandler proxyObjectMethod(proxy, method, args)
                     say("Tbrowser ${method.name}: ${args?.contentDeepToString() ?: "sin argumentos"}")
-                    if (method.name == "onSuccess" && args?.firstOrNull() == true) browserReady = true
+                    if (method.name == "onSuccess" && args?.firstOrNull() == true) {
+                        browserReady = true
+                        if (autoStartOnBrowser) {
+                            activity.runOnUiThread {
+                                if (start()) afterStarted?.invoke()
+                            }
+                        }
+                    }
                     defaultValue(method.returnType)
                 }
             )
@@ -77,20 +97,21 @@ class TclHbbtvEngine(
         }.onFailure { say("Error inicialización: ${rootCause(it)}") }
     }
 
-    fun start() {
+    fun start(): Boolean {
         if (!initialized || !browserReady) {
             say("No se puede iniciar: inicializado=$initialized, navegador listo=$browserReady")
-            return
+            return false
         }
         if (started) {
             say("HbbTV ya iniciado")
-            return
+            return true
         }
         runCatching {
             val value = server!!.javaClass.getMethod("start").invoke(server)
             started = value == 0 || value == null || value == true
-            say("HbbtvServer.start()=$value; aceptado=$started")
+            say("HbbtvServer.start()=$value; llamada aceptada=$started (no confirma aplicación)")
         }.onFailure { say("Error start: ${rootCause(it)}") }
+        return started
     }
 
     fun key(event: KeyEvent): Boolean {

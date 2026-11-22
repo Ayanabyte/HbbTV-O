@@ -45,3 +45,11 @@ En Bugjaeger: `logcat -d -v time -s HbbTVO:I '*:S'`.
 El botón **Permisos TCL** informa del UID real, coincidencia de firmas y permisos efectivos. Se declara `android.permission.WRITE_SECURE_SETTINGS` para una prueba explícita y opcional con el shell ADB de la propia TV: `pm grant com.ayanabyte.hbbtvo android.permission.WRITE_SECURE_SETTINGS`. El resultado depende del firmware; una concesión no proporciona UID 1000 ni firmas TCL. El botón es de lectura y no altera configuraciones.
 
 Para comparar, pulsar **Permisos TCL**, luego **HbbTV ON**, **Gestor ON** y de nuevo **Contexto DVB**. Si la activación sigue sin persistir, el bloqueo se halla fuera de ese permiso de desarrollo, o intervienen otras condiciones.
+
+## Secuencia experimental TVSDK + HbbTV (0.1.6)
+
+El botón **TVSDK + HbbTV** ejecuta una preparación comprobable sin clonar credenciales TCL: inspección de TVSDK y estado inicial; inicialización de `HbbtvServer`; petición `setLivetvMode(true)`; inicialización de `Tbrowser`; arranque en `onSuccess(true)`; reinicio de sesión `TvView` y sintonización del **mismo canal** con el motor arrancado. A continuación observa durante 30 s `HbbtvServer.getState()` y `THbbtvManager.getState()`, registrando transiciones y si se llega a `EN_TCL_HBBTV_ON_NO_VOD`. El botón **Estado TCL** consulta las mismas fuentes en cualquier momento.
+
+El experimento prioriza Antena 3 normal (no A3 UHD) cuando está disponible. Si el motor responde `start()=0` pero continúa `NO_EXIST`, no se informa falsamente de que LOVEStv funciona. Las aplicaciones oficiales TCL usan otros privilegios; `systemAuthorized(String)` está presente, pero esta APK no incorpora ni extrae credenciales privadas del fabricante. Ningún código de Channel+ se copia al proyecto.
+
+Logs: `logcat -d -v time -s HbbTVO:I '*:S' | tail -n 100`.
