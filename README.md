@@ -70,3 +70,11 @@ El registro de 0.1.9 confirmó TVSDK autorizado y un SIGSEGV antes de pulsar AZU
 3. Segundo botón AZUL: HbbtvServer.start. Esperar 15 segundos; un tercer AZUL envía la tecla al motor si sigue vivo.
 
 El menú OK → GUARDAR diagnóstico TXT incluye fase actual y registro recuperado de cierre. El diagnóstico de ciclo de vida registra foco de ventana y onPause. Puentes nativos del antiguo software siguen desactivados por defecto. El firmware y la aplicación TCL originales permanecen intactos. El resultado confirma solo la fase que se haya alcanzado, no el funcionamiento de LOVEStv.
+
+## O! 0.2.1 — recuperación tras cierre nativo y comparación con/sin HbbtvServer
+
+El diagnóstico 0.2.0 confirmó que TVSDK devuelve true, HbbtvServer.init funciona, el callback de Tbrowser termina y **se produce SIGSEGV 1-2 segundos después sin llamar a HbbtvServer.start ni a initWebView manual**. Además la ventana se pausa y pierde el foco al mismo tiempo, sin demostrar causalidad.
+
+Ahora una actividad de inicio segura `LauncherActivity` se ejecuta en el proceso normal del paquete; la actividad de laboratorio `MainActivity` continúa separada en el proceso TCL autorizado `com.tcl.tv`. El cierre de la segunda no debería matar la primera. La pantalla de inicio puede detectar el último `REASON_CRASH_NATIVE` mediante ApplicationExitInfo, leer el diario persistente del laboratorio y guardar un diagnóstico TXT incluso cuando el laboratorio se cierre. Intentará guardar automáticamente tras un cierre nativo observado, sin eliminar los botones de descarga manual.
+
+Los dos modos de prueba son «Tbrowser SIN HbbtvServer.init» y «Tbrowser CON HbbtvServer.init». El primero omite también `HbbtvServer.start`, para comprobar si el navegador por sí solo provoca el cierre. En ambos se omite `initWebView` manual y permanecen desactivados por defecto los puentes nativos experimentales. Un botón AZUL inicia Tbrowser después de autorizar TVSDK. El modo combinado puede probar el servidor más adelante. Los certificados y el firmware TCL original permanecen intactos. La compilación no valida comportamiento en el televisor.

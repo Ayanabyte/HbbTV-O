@@ -27,9 +27,12 @@ final class TclHbbtvClient {
     private final Map<Integer,Integer> keyCodes=new HashMap<>();
     private Object engine,browser;
     private boolean closed,starting,ready,browserInitialized,serverInitialized,browserStarting;
+    private final boolean withoutServer;
 
     TclHbbtvClient(Activity activity,FrameLayout layer,Callback callback) {
         this.activity=activity; this.layer=layer; this.callback=callback;
+        this.withoutServer=activity.getIntent().getBooleanExtra("browser_without_server",false);
+        report("MODO DE PRUEBA: "+(withoutServer?"Tbrowser SIN HbbtvServer.init":"Tbrowser CON HbbtvServer.init"));
         try {
             System.loadLibrary("olovetvprobe");
             report("Proceso ABI="+nativeBits()+" bits");
@@ -67,6 +70,14 @@ final class TclHbbtvClient {
                 NativeBridgePreparation.prepare(activity,this::report);
                 flags.edit().putBoolean("native_bridge_crash_armed",false).commit();
                 report("FASE NATIVA: puentes finalizados");
+            }
+            if(withoutServer){
+                serverInitialized=true;
+                starting=false;
+                phase("SERVIDOR_OMITIDO_TBROWSER_SOLO",false);
+                report("FASE SERVIDOR: HbbtvServer.init OMITIDO por prueba comparativa");
+                report("FASE SERVIDOR: preparado SIN HbbtvServer.init; pulsa AZUL para Tbrowser");
+                return;
             }
             phase("SERVIDOR_INIT_CALL",true);
             engine=serverClass.getMethod("getInstance",Context.class).invoke(null,activity);
@@ -115,7 +126,9 @@ final class TclHbbtvClient {
                 });
             browser.getClass().getMethod("setTbrowserInitEventListener",listenerClass)
                 .invoke(browser,listener);
-            report("FASE NAVEGADOR: invocando Tbrowser.initTbrowser SIN initWebView manual");
+            report("FASE NAVEGADOR: invocando Tbrowser.initTbrowser; modo="+
+                (withoutServer?"SIN HbbtvServer.init":"CON HbbtvServer.init")
+                +", sin initWebView manual");
             browser.getClass().getMethod("initTbrowser",Context.class,ViewGroup.class,boolean.class)
                 .invoke(browser,activity,layer,false);
             ui.postDelayed(()->{
@@ -142,6 +155,10 @@ final class TclHbbtvClient {
 
     /** Stage C, only on another explicit blue press. */
     void activate(){
+        if(withoutServer){
+            report("FASE START: no se invoca HbbtvServer.start en la prueba SOLO navegador");
+            return;
+        }
         if(closed||ready||!browserInitialized){
             report("FASE START: no disponible closed="+closed+
                 " browser="+browserInitialized+" ready="+ready);
