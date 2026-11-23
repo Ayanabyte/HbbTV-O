@@ -81,7 +81,9 @@ final class TclHbbtvClient {
         if(closed||ready)return;
         try {
             report("Tbrowser listo; HbbtvServer.start");
-            check(invoke(engine,"start"));
+            Object startResult=invoke(engine,"start");
+            report("FASE HBBTV START: resultado="+startResult);
+            check(startResult);
             starting=false; ready=true;
             callback.ready();
         }catch(Throwable error){fail("No arrancó HbbtvServer.start",error);}

@@ -2,6 +2,10 @@ package com.ayanabyte.o.lovestv;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.ActivityManager;
+import android.app.ApplicationExitInfo;
+import java.io.FileInputStream;
+import java.io.ByteArrayOutputStream;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.media.tv.TvView;
@@ -49,6 +53,9 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     private boolean tvsdkAuthorized,tvsdkRegistering;
     private int tvsdkEpoch;
     private String tvsdkStatus="sin registrar";
+    private String previousSession="No hay registro de una sesión anterior";
+    private String previousExit="Sin información de cierre anterior";
+    private File flightRecorder;
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
@@ -68,15 +75,27 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
         p.gravity=Gravity.TOP|Gravity.LEFT;p.leftMargin=20;p.topMargin=20;
         screen.addView(message,p);
         setContentView(screen);
-        show("O! · LOVEStv Lab\nBuscando TDT…");
-        trace("Nueva sesión de O!");
+        recoverPreviousSession();
+        trace("Nueva sesión de O! 0.1.7; PID="+android.os.Process.myPid()
+            +" UID="+android.os.Process.myUid()+" proceso="+getApplicationInfo().processName);
+        show("O! · LOVEStv Lab 0.1.7\nBuscando TDT…");
     }
 
     @Override protected void onStart(){
         super.onStart();foreground=true;
+        trace("CICLO onStart; canales="+channels.size()+" posición="+position);
         if(checkSelfPermission("android.permission.READ_TV_LISTINGS")!=PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},PERMISSION_REQUEST);
-        else loadChannels();
+        else if(channels.isEmpty() || position<0)loadChannels();
+        else trace("CICLO onStart: reutilizando sesión TDT/HbbTV sin resintonizar");
+    }
+    @Override protected void onResume(){
+        super.onResume();
+        trace("CICLO onResume");
+    }
+    @Override protected void onPause(){
+        trace("CICLO onPause");
+        super.onPause();
     }
     @Override public void onRequestPermissionsResult(int req,String[] p,int[] r){
         super.onRequestPermissionsResult(req,p,r);
@@ -195,9 +214,20 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
         },2000);
     }
     @Override public void ready(){
-        trace("Motor HbbTV preparado");
+        trace("FASE READY: Motor HbbTV preparado; TVSDK autorizado="+tvsdkAuthorized
+            +" · "+tvsdkStatus);
+        show("HbbTV preparado · pulsa AZUL");
         if(pendingBlue){pendingBlue=false;blue();}
-        else show("HbbTV preparado · pulsa AZUL");
+        for(int delay:new int[]{1000,5000,15000}){
+            ui.postDelayed(()->{
+                trace("FASE READY +"+delay+"ms: comprobando proceso vivo");
+                if(foreground && hbbtv!=null && hbbtv.isReady()){
+                    trace("FASE READY +"+delay+"ms: "+hbbtv.snapshot());
+                }else{
+                    trace("FASE READY +"+delay+"ms: inactivo/foreground="+foreground);
+                }
+            },delay);
+        }
     }
     @Override public void report(String text){
         trace(text);
@@ -245,7 +275,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             "Copiar diagnóstico", "Cambiar canal TDT",
             "Abrir LOVEStv (AZUL)", "Reiniciar motor HbbTV",
             "Resintonizar con HbbTV activo", "Comparar con TV original TCL"};
-        new AlertDialog.Builder(this).setTitle("O! 0.1.5 · MENÚ Y DIAGNÓSTICO")
+        new AlertDialog.Builder(this).setTitle("O! 0.1.7 · MENÚ Y DIAGNÓSTICO")
             .setItems(actions,(d,which)->{
                 switch(which){
                     case 0:diagnostics();break;
@@ -297,17 +327,19 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     }
 
     private String diagnosticText(){
-        return "O! LOVEStv Lab 0.1.5\n"
+        return "O! LOVEStv Lab 0.1.7\n"
             +"TVSDK autorizado: "+tvsdkAuthorized
             +"\nTVSDK estado: "+tvsdkStatus
             +"\nCanal: "+(position<0?"ninguno":channels.get(position).label())
             +"\nVídeo: "+hasVideo
             +"\nHbbTV: "+(hbbtv==null?"sin iniciar":hbbtv.isReady()?"preparado":"no preparado")
             +"\n"+(hbbtv==null?"Sin cliente nativo":hbbtv.snapshot())
-            +"\n\n--- Registro ---\n"+history;
+            +"\n\n--- INFORMACIÓN DEL CIERRE ANTERIOR ---\n"+previousExit
+            +"\n\n--- REGISTRO ANTERIOR RECUPERADO ---\n"+previousSession
+            +"\n\n--- REGISTRO ACTUAL ---\n"+history;
     }
     private void diagnostics(){
-        new AlertDialog.Builder(this).setTitle("O! 0.1.5 · DIAGNÓSTICO")
+        new AlertDialog.Builder(this).setTitle("O! 0.1.7 · DIAGNÓSTICO")
             .setMessage(diagnosticText())
             .setPositiveButton("GUARDAR .TXT",(d,w)->saveDiagnostics())
             .setNeutralButton("COMPARTIR",(d,w)->share())
@@ -431,21 +463,97 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
         message.setText(s+(interactive?"":"\nOK / ↓ / ATRÁS: MENÚ · DIAGNÓSTICO"));
         message.setVisibility(View.VISIBLE);
     }
-    private void trace(String s){
-        Log.i(TAG,s);
-        history.append(android.text.format.DateFormat.format("HH:mm:ss",System.currentTimeMillis()))
-            .append(" ").append(s).append('\n');
+    /**
+     * Keep the last session on internal storage with each critical phase
+     * fsynced. It survives an abrupt Java/native crash, unlike logcat-only
+     * diagnostics and the old in-memory history.
+     */
+    private void recoverPreviousSession(){
+        flightRecorder=new File(getFilesDir(),"o-lovestv-flight-record.log");
+        try{
+            if(flightRecorder.exists()){
+                try(FileInputStream in=new FileInputStream(flightRecorder);
+                    ByteArrayOutputStream out=new ByteArrayOutputStream()){
+                    byte[] buf=new byte[4096];
+                    int n;
+                    while((n=in.read(buf))!=-1 && out.size()<64000)
+                        out.write(buf,0,Math.min(n,64000-out.size()));
+                    previousSession=new String(out.toByteArray(),StandardCharsets.UTF_8);
+                }
+            }
+        }catch(Throwable e){previousSession="No se pudo recuperar: "+e.getMessage();}
+        if(previousSession.length()>32000)
+            previousSession=previousSession.substring(previousSession.length()-32000);
+        try{
+            if(Build.VERSION.SDK_INT>=30){
+                ActivityManager manager=(ActivityManager)getSystemService(ACTIVITY_SERVICE);
+                if(manager!=null){
+                    java.util.List<ApplicationExitInfo> exits=manager.getHistoricalProcessExitReasons(
+                        getPackageName(),0,5);
+                    if(!exits.isEmpty()){
+                        ApplicationExitInfo exit=exits.get(0);
+                        previousExit="PID="+exit.getPid()
+                            +" reason="+exit.getReason()
+                            +" status="+exit.getStatus()
+                            +" importance="+exit.getImportance()
+                            +" timestamp="+exit.getTimestamp()
+                            +" description="+exit.getDescription();
+                        try(InputStream in=exit.getTraceInputStream()){
+                            if(in!=null){
+                                ByteArrayOutputStream out=new ByteArrayOutputStream();
+                                byte[] buf=new byte[4096];int n;
+                                while((n=in.read(buf))!=-1 && out.size()<16000)
+                                    out.write(buf,0,Math.min(n,16000-out.size()));
+                                previousExit+="\nTraza del sistema:\n"+
+                                    new String(out.toByteArray(),StandardCharsets.UTF_8);
+                            }
+                        }catch(Throwable ignored){}
+                    }
+                }
+            }
+        }catch(Throwable error){previousExit="Consulta de cierre falló: "+error.getMessage();}
+        try(FileOutputStream out=new FileOutputStream(flightRecorder,false)){
+            out.write(("O! 0.1.7 registro persistente · "+System.currentTimeMillis()+"\n")
+                .getBytes(StandardCharsets.UTF_8));
+            out.getFD().sync();
+        }catch(Throwable error){Log.w(TAG,"No se pudo crear diario",error);}
+    }
+    private synchronized void trace(String text){
+        Log.i(TAG,text);
+        String line=android.text.format.DateFormat.format("HH:mm:ss",System.currentTimeMillis())
+            +" "+text+"\n";
+        history.append(line);
         if(history.length()>14000)history.delete(0,history.length()-10000);
+        if(flightRecorder!=null)try{
+            if(flightRecorder.length()>60000){
+                try(FileOutputStream out=new FileOutputStream(flightRecorder,false)){
+                    out.write(("O! registro rotado\n"+history).getBytes(StandardCharsets.UTF_8));
+                    out.getFD().sync();
+                }
+            }else{
+                try(FileOutputStream out=new FileOutputStream(flightRecorder,true)){
+                    out.write(line.getBytes(StandardCharsets.UTF_8));
+                    out.getFD().sync();
+                }
+            }
+        }catch(Throwable error){Log.w(TAG,"No se pudo escribir diario",error);}
     }
     @Override protected void onStop(){
+        trace("CICLO onStop: TVSDK="+tvsdkAuthorized+
+            " navegador="+(hbbtv==null?"null":hbbtv.isReady()? "preparado":"no preparado"));
         foreground=false;requestId++;
-        used.clear();pendingBlue=false;
-        ++tvsdkEpoch;
-        tvsdkRegistering=false;tvsdkAuthorized=false;
-        tvsdkStatus="sesión detenida";
-        failureDialogShown=false;
-        stopEngine();tv.setCallback(null);tv.reset();
-        ui.removeCallbacksAndMessages(null);
+        used.clear();
+        // Avoid destroying the vendor native HbbTV server in a transient
+        // background transition; the previous version closed unexpectedly.
+        // Preserve TvView/Tbrowser session for onStart instead.
         super.onStop();
+    }
+    @Override protected void onDestroy(){
+        trace("CICLO onDestroy: finishing="+isFinishing()
+            +" changingConfigurations="+isChangingConfigurations());
+        ui.removeCallbacksAndMessages(null);
+        // The process owns these vendor-native resources. Do not invoke TCL
+        // teardown during normal Android lifecycle reordering.
+        super.onDestroy();
     }
 }
