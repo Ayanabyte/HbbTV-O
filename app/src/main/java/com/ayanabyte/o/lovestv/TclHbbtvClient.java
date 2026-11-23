@@ -57,7 +57,6 @@ final class TclHbbtvClient {
             phase("SERVIDOR_INIT_INICIO",true);
             boolean webkitOk=VendorWebkitAccess.prepare(activity,this::report);
             report("FASE SERVIDOR: TCL WebKit accesible="+webkitOk);
-            Class<?> serverClass=Class.forName("com.tcl.hbbtv.HbbtvServer");
             android.content.SharedPreferences flags=activity.getPreferences(Context.MODE_PRIVATE);
             boolean safeMode=flags.getBoolean("native_bridge_crash_armed",false);
             if(!flags.getBoolean("enable_native_bridges",false)){
@@ -79,6 +78,7 @@ final class TclHbbtvClient {
                 report("FASE SERVIDOR: preparado SIN HbbtvServer.init; pulsa AZUL para Tbrowser");
                 return;
             }
+            Class<?> serverClass=Class.forName("com.tcl.hbbtv.HbbtvServer");
             phase("SERVIDOR_INIT_CALL",true);
             engine=serverClass.getMethod("getInstance",Context.class).invoke(null,activity);
             Object initResult=invoke(engine,"init");
