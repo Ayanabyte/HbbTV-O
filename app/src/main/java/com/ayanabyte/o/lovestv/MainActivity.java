@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.app.ActivityManager;
 import android.app.ApplicationExitInfo;
 import java.io.FileInputStream;
+import java.io.InputStream;
 import java.io.ByteArrayOutputStream;
 import android.content.Intent;
 import android.content.pm.PackageManager;
