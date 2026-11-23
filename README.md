@@ -51,3 +51,11 @@ ARM32 bridge libraries were extracted from the user's supplied functional APK, s
 Crash guard: a marker persists while testing the bridge. If the process crashes before 20 seconds, the next app launch automatically skips those native modifications and the diagnostic reports recovery mode. From the menu, **Rearmar puentes nativos** clears the marker for another launch. Exporting a TXT includes the previous crashed session.
 
 **This version remains an experimental test, not a confirmed fix.** Package `com.ayanabyte.o.lovestv.lab9`; old apps and main branch unchanged.
+
+## 0.1.9 — aislamiento de cierre nativo
+
+En 0.1.8 TVSDK autorizó O! y la WebView TCL se creó, pero el proceso sufrió SIGSEGV (Android ApplicationExitInfo: reason=5, status=11) poco después de HbbtvServer.start. Puentes nativos omitidos por modo recuperación en la sesión documentada; por tanto no se puede atribuir la caída a su ejecución. El estado seguía EN_TCL_HBBTV_NO_EXIST, sin AIT.
+
+0.1.9 separa dos fases: TVSDK/HbbtvServer.init/Tbrowser.init (sin llamar HbbtvServer.start), y activación explícita del servidor con el botón AZUL. En la primera fase registra tres latidos sin invocar JNI (+3, +8, +15s). En la segunda registra el instante de start y deja un marcador persistente hasta sobrevivir 15 segundos. Los eventos HbbTV se registran con argumentos limitados. La preparación de puentes nativos es experimental y está desactivada por defecto, sin alterar la aplicación antigua ni firmware TCL.
+
+**Prueba:** abre Antena 3, espera diez segundos sin pulsar azul, después pulsa AZUL. Si se cierra, vuelve a abrir la app y guarda el diagnóstico TXT: incluirá el registro anterior y el marcador de la fase donde ocurrió el cierre.

@@ -26,7 +26,7 @@ final class TclHbbtvClient {
     private final Handler ui=new Handler(Looper.getMainLooper());
     private final Map<Integer,Integer> keyCodes=new HashMap<>();
     private Object engine,browser;
-    private boolean closed,starting,ready;
+    private boolean closed,starting,ready,browserInitialized;
 
     TclHbbtvClient(Activity activity,FrameLayout layer,Callback callback) {
         this.activity=activity; this.layer=layer; this.callback=callback;
@@ -40,6 +40,7 @@ final class TclHbbtvClient {
     boolean isReady(){return ready&&!closed;}
     boolean isStarting(){return starting&&!closed;}
     boolean isClosed(){return closed;}
+    boolean isBrowserInitialized(){return browserInitialized&&!closed;}
 
     void start() {
         if(closed||starting||ready)return;
@@ -53,7 +54,9 @@ final class TclHbbtvClient {
             // marker. Next launch automatically runs in recovery mode.
             android.content.SharedPreferences flags=activity.getPreferences(Context.MODE_PRIVATE);
             boolean safeMode=flags.getBoolean("native_bridge_crash_armed",false);
-            if(safeMode){
+            if(!flags.getBoolean("enable_native_bridges",false)){
+                report("Puentes nativos: desactivados por defecto para aislar SIGSEGV");
+            }else if(safeMode){
                 report("Puentes nativos: MODO RECUPERACIÓN tras salida anterior; no se instalan");
             }else{
                 flags.edit().putBoolean("native_bridge_crash_armed",true).commit();
@@ -98,17 +101,42 @@ final class TclHbbtvClient {
     }
 
     private void browserReady() {
-        if(closed||ready)return;
+        if(closed||ready||browserInitialized)return;
         try {
-            report("Tbrowser listo; preparando lienzo TCL");
+            report("FASE NAVEGADOR: Tbrowser listo; servidor HbbTV aún no arrancado");
             TclBrowserCanvas.prepare(browser,layer,this::report);
-            report("FASE START: HbbtvServer.start");
-            Object startResult=invoke(engine,"start");
-            report("FASE HBBTV START: resultado="+startResult);
-            check(startResult);
-            starting=false; ready=true;
+            browserInitialized=true;
+            starting=false;
+            report("FASE NAVEGADOR: preparado; esperando botón AZUL para HbbtvServer.start");
+            for(int delay:new int[]{3000,8000,15000}){
+                ui.postDelayed(()->{
+                    if(!closed&&!ready)report("FASE NAVEGADOR: vivo "+delay+"ms SIN HbbtvServer.start");
+                },delay);
+            }
+        }catch(Throwable error){fail("Error preparando navegador",error);}
+    }
+
+    void activate(){
+        if(closed||ready||!browserInitialized){
+            report("FASE START: no se puede activar: cerrado="+closed+" browser="+browserInitialized+" ready="+ready);
+            return;
+        }
+        android.content.SharedPreferences flags=activity.getPreferences(Context.MODE_PRIVATE);
+        flags.edit().putBoolean("hbbtv_start_crash_armed",true).commit();
+        try{
+            report("FASE START: invocando HbbtvServer.start por botón AZUL");
+            Object result=invoke(engine,"start");
+            report("FASE START: respuesta="+result);
+            check(result);
+            ready=true;
             callback.ready();
-        }catch(Throwable error){fail("No arrancó HbbtvServer.start",error);}
+            ui.postDelayed(()->{
+                if(!closed&&ready){
+                    flags.edit().putBoolean("hbbtv_start_crash_armed",false).commit();
+                    report("FASE START: proceso estable 15 s después de start");
+                }
+            },15000);
+        }catch(Throwable e){fail("Error HbbtvServer.start",e);}
     }
 
     /** State and browser visibility are diagnostic only, not proof that LOVEStv loaded. */
@@ -175,7 +203,18 @@ final class TclHbbtvClient {
             Object handler=Proxy.newProxyInstance(eventClass.getClassLoader(),
                 new Class<?>[]{eventClass},(proxy,method,args)->{
                     if(method.getDeclaringClass()==Object.class)return objectMethod(proxy,method,args);
-                    Log.i(TAG,"Evento HbbTV: "+method.getName());
+                    StringBuilder event=new StringBuilder("Evento HbbTV: "+method.getName());
+                    if(args!=null)for(int i=0;i<args.length&&i<4;i++){
+                        Object v=args[i];
+                        if(v==null||v instanceof Number||v instanceof Boolean||v instanceof String){
+                            String val=String.valueOf(v);
+                            event.append(" arg").append(i).append("=")
+                                .append(val.length()>100?val.substring(0,100):val);
+                        }else event.append(" arg").append(i).append("<")
+                            .append(v.getClass().getSimpleName()).append(">");
+                    }
+                    String record=event.toString();
+                    ui.post(()->{if(!closed)report(record);});
                     return defaultValue(method.getReturnType());
                 });
             notifyClass.getMethod("registerHbbtvEventListener",eventClass).invoke(notifier,handler);
@@ -185,7 +224,7 @@ final class TclHbbtvClient {
 
     void close() {
         if(closed)return;
-        closed=true;starting=false;ready=false;
+        closed=true;starting=false;ready=false;browserInitialized=false;
         ui.removeCallbacksAndMessages(null);
         if(engine!=null)try{invoke(engine,"stopAsync");}catch(Throwable e){Log.w(TAG,"stopAsync",e);}
         if(browser!=null)try{invoke(browser,"destoryPage");}catch(Throwable e){Log.w(TAG,"destoryPage",e);}

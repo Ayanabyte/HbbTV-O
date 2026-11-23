@@ -77,7 +77,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
         screen.addView(message,p);
         setContentView(screen);
         recoverPreviousSession();
-        trace("Nueva sesión de O! 0.1.8; PID="+android.os.Process.myPid()
+        trace("Nueva sesión de O! 0.1.9; PID="+android.os.Process.myPid()
             +" UID="+android.os.Process.myUid()+" proceso="+getApplicationInfo().processName);
         show("O! · LOVEStv Lab 0.1.7\nBuscando TDT…");
     }
@@ -198,13 +198,22 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             return;
         }
         if(hbbtv==null||hbbtv.isClosed())hbbtv=new TclHbbtvClient(this,overlay,this);
-        if(!hbbtv.isStarting()&&!hbbtv.isReady())hbbtv.start();
+        if(!hbbtv.isStarting()&&!hbbtv.isReady()&&!hbbtv.isBrowserInitialized())hbbtv.start();
     }
     private void blue(){
         trace("Azul pulsado; vídeo="+hasVideo+" canal="+current());
         if(!hasVideo){show("Espera a que aparezca la imagen TDT");return;}
         if(hbbtv==null||!hbbtv.isReady()){
-            pendingBlue=true;show("Iniciando HbbTV TCL…");startEngine();return;
+            pendingBlue=true;
+            if(hbbtv!=null&&hbbtv.isBrowserInitialized()){
+                trace("FASE START: AZUL recibido, activando servidor HbbTV");
+                show("Arrancando HbbTV TCL…");
+                hbbtv.activate();
+            }else{
+                show("Preparando navegador TCL; pulsa AZUL para activar cuando esté listo");
+                startEngine();
+            }
+            return;
         }
         boolean accepted=hbbtv.sendKey(KeyEvent.KEYCODE_PROG_BLUE);
         interactive=accepted;
@@ -218,15 +227,11 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
         trace("FASE READY: Motor HbbTV preparado; TVSDK autorizado="+tvsdkAuthorized
             +" · "+tvsdkStatus);
         show("HbbTV preparado · pulsa AZUL");
-        if(pendingBlue){pendingBlue=false;blue();}
+        if(pendingBlue){pendingBlue=false;ui.postDelayed(this::blue,500);}
         for(int delay:new int[]{1000,5000,15000}){
             ui.postDelayed(()->{
                 trace("FASE READY +"+delay+"ms: comprobando proceso vivo");
-                if(foreground && hbbtv!=null && hbbtv.isReady()){
-                    trace("FASE READY +"+delay+"ms: "+hbbtv.snapshot());
-                }else{
-                    trace("FASE READY +"+delay+"ms: inactivo/foreground="+foreground);
-                }
+                trace("FASE READY +"+delay+"ms: heartbeat SIN invocar JNI, foreground="+foreground);
             },delay);
         }
     }
@@ -277,7 +282,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             "Copiar diagnóstico", "Cambiar canal TDT",
             "Abrir LOVEStv (AZUL)", "Reiniciar motor HbbTV",
             "Resintonizar con HbbTV activo", "Comparar con TV original TCL"};
-        new AlertDialog.Builder(this).setTitle("O! 0.1.8 · MENÚ Y DIAGNÓSTICO")
+        new AlertDialog.Builder(this).setTitle("O! 0.1.9 · MENÚ Y DIAGNÓSTICO")
             .setItems(actions,(d,which)->{
                 switch(which){
                     case 0:diagnostics();break;
@@ -339,9 +344,12 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     }
 
     private String diagnosticText(){
-        return "O! LOVEStv Lab 0.1.8\n"
+        return "O! LOVEStv Lab 0.1.9\n"
             +"Puente nativo en modo recuperación: "+
                 getPreferences(MODE_PRIVATE).getBoolean("native_bridge_crash_armed",false)
+            +"\nNavegador inicializado: "+(hbbtv!=null&&hbbtv.isBrowserInitialized())
+            +"\nUltimo HbbtvServer.start sin 15 s confirmados: "+
+                getPreferences(MODE_PRIVATE).getBoolean("hbbtv_start_crash_armed",false)
             +"\nTVSDK autorizado: "+tvsdkAuthorized
             +"\nTVSDK estado: "+tvsdkStatus
             +"\nCanal: "+(position<0?"ninguno":channels.get(position).label())
@@ -353,7 +361,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             +"\n\n--- REGISTRO ACTUAL ---\n"+history;
     }
     private void diagnostics(){
-        new AlertDialog.Builder(this).setTitle("O! 0.1.8 · DIAGNÓSTICO")
+        new AlertDialog.Builder(this).setTitle("O! 0.1.9 · DIAGNÓSTICO")
             .setMessage(diagnosticText())
             .setPositiveButton("GUARDAR .TXT",(d,w)->saveDiagnostics())
             .setNeutralButton("COMPARTIR",(d,w)->share())
