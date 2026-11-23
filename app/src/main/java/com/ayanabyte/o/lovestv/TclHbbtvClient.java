@@ -47,8 +47,28 @@ final class TclHbbtvClient {
         try {
             boolean webkitOk=VendorWebkitAccess.prepare(activity,this::report);
             report("Preparación TCL WebKit terminada, visible="+webkitOk);
+            report("Puentes nativos: cargando clase HbbtvServer antes de init");
+            Class<?> serverClass=Class.forName("com.tcl.hbbtv.HbbtvServer");
+            // A crash during the native pre-init phase leaves an on-disk
+            // marker. Next launch automatically runs in recovery mode.
+            android.content.SharedPreferences flags=activity.getPreferences(Context.MODE_PRIVATE);
+            boolean safeMode=flags.getBoolean("native_bridge_crash_armed",false);
+            if(safeMode){
+                report("Puentes nativos: MODO RECUPERACIÓN tras salida anterior; no se instalan");
+            }else{
+                flags.edit().putBoolean("native_bridge_crash_armed",true).commit();
+                report("FASE NATIVE: preparación antes de HbbtvServer.init");
+                NativeBridgePreparation.prepare(activity,this::report);
+                report("FASE NATIVE: preparación terminada");
+                ui.postDelayed(()->{
+                    if(!closed){
+                        flags.edit().putBoolean("native_bridge_crash_armed",false).apply();
+                        report("Puentes nativos: sesión sobrevivió 20 s; protección reiniciada");
+                    }
+                },20000);
+            }
             report("HbbtvServer.getInstance → init");
-            engine=singleton("com.tcl.hbbtv.HbbtvServer");
+            engine=serverClass.getMethod("getInstance",Context.class).invoke(null,activity);
             Object initResult=invoke(engine,"init");
             report("HbbtvServer.init respuesta="+initResult);
             check(initResult);
@@ -80,7 +100,9 @@ final class TclHbbtvClient {
     private void browserReady() {
         if(closed||ready)return;
         try {
-            report("Tbrowser listo; HbbtvServer.start");
+            report("Tbrowser listo; preparando lienzo TCL");
+            TclBrowserCanvas.prepare(browser,layer,this::report);
+            report("FASE START: HbbtvServer.start");
             Object startResult=invoke(engine,"start");
             report("FASE HBBTV START: resultado="+startResult);
             check(startResult);

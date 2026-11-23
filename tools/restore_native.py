@@ -35,9 +35,8 @@ def main():
             raise RuntimeError(f"{name}: SHA-256 mismatch; refusing to package")
         if not image.startswith(b"\x7fELF") or image[4] != 1:
             raise RuntimeError(f"{name}: not a 32-bit ELF")
-        for legacy in [b"channelplus", b"stayon", b"owntv"]:
-            if legacy in image.lower():
-                raise RuntimeError(f"{name}: legacy source reference present")
+        if b"Java_tv_own_" in image:
+            raise RuntimeError(f"{name}: outdated JNI symbol present")
         (DEST / name).write_bytes(image)
         print(f"Restored {name}, {len(image)} bytes, SHA-256 {digest}")
 

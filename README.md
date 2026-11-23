@@ -41,3 +41,13 @@ La APK antigua funcional 1.44 declara la actividad HbbTV de prueba con `android:
 ## O! 0.1.7: diagnóstico de cierre inesperado
 
 Mantiene el nombre de proceso de actividad `com.tcl.tv` que en 0.1.6 consiguió avanzar hasta «HbbTV preparado» (observación en TCL; confirmación de TVSDK aún por registrar). Añade registro persistente interno sin copiar autorización, guarda cada fase con sincronización a disco, y muestra el último registro recuperado en la siguiente apertura tras cualquier cierre abrupto. En Android 11 consulta `ApplicationExitInfo` para identificar códigos Java crash/native crash/signal/kill cuando Android los expone. Una vez reabierta la app, OK → Guardar diagnóstico TXT en Descargas incluye tanto la sesión actual como la anterior. Pruebas temporizadas +1/+5/+15 segundos al preparar HbbTV y más registros sobre ciclo de vida Android. Evita destruir `HbbtvServer` desde `onStop` porque puede activarse durante transiciones normales. Paquete nuevo `com.ayanabyte.o.lovestv.lab8`; no actualiza la aplicación anterior ni la rama principal.
+
+## O! 0.1.8: native pre-initialization, certificate bridge, browser canvas
+
+The diagnostic from 0.1.7 confirmed that TVSDK returns `systemAuthorized=true` with a separate UID, that `HbbtvServer.start` returns 0 and that the process then dies from SIGSEGV (reason=5, status=11). This variant retains working process identity and adds the missing initialization used by the old functional APK: verified native certificate/section bridge, vendor user-agent bridge and canvas preparation **before** `HbbtvServer.start`.
+
+ARM32 bridge libraries were extracted from the user's supplied functional APK, stripped of debug info and obsolete package JNI names, then verified by SHA256; their source bytes are stored as compressed base64 with an extraction step in GitHub Actions. The operating code checks SHA-256 of the loaded V138 HbbTV and SITA libraries before calling native methods. No firmware mutation, no vendor signing keys, and no unverified native addresses are used. The native bridge only modifies memory inside the current O! app process.
+
+Crash guard: a marker persists while testing the bridge. If the process crashes before 20 seconds, the next app launch automatically skips those native modifications and the diagnostic reports recovery mode. From the menu, **Rearmar puentes nativos** clears the marker for another launch. Exporting a TXT includes the previous crashed session.
+
+**This version remains an experimental test, not a confirmed fix.** Package `com.ayanabyte.o.lovestv.lab9`; old apps and main branch unchanged.

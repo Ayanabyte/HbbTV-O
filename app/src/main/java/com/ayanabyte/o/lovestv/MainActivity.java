@@ -77,7 +77,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
         screen.addView(message,p);
         setContentView(screen);
         recoverPreviousSession();
-        trace("Nueva sesión de O! 0.1.7; PID="+android.os.Process.myPid()
+        trace("Nueva sesión de O! 0.1.8; PID="+android.os.Process.myPid()
             +" UID="+android.os.Process.myUid()+" proceso="+getApplicationInfo().processName);
         show("O! · LOVEStv Lab 0.1.7\nBuscando TDT…");
     }
@@ -272,25 +272,36 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
         trace("Menú solicitado desde mando");
         String[] actions={"Ver diagnóstico TVSDK / HbbTV",
             "GUARDAR diagnóstico .TXT en Descargas",
-            "Reintentar registro TVSDK", "Compartir registro",
+            "Reintentar registro TVSDK", "Rearmar puentes nativos",
+            "Compartir registro",
             "Copiar diagnóstico", "Cambiar canal TDT",
             "Abrir LOVEStv (AZUL)", "Reiniciar motor HbbTV",
             "Resintonizar con HbbTV activo", "Comparar con TV original TCL"};
-        new AlertDialog.Builder(this).setTitle("O! 0.1.7 · MENÚ Y DIAGNÓSTICO")
+        new AlertDialog.Builder(this).setTitle("O! 0.1.8 · MENÚ Y DIAGNÓSTICO")
             .setItems(actions,(d,which)->{
                 switch(which){
                     case 0:diagnostics();break;
                     case 1:saveDiagnostics();break;
                     case 2:retryTvSdk();break;
-                    case 3:share();break;
-                    case 4:copyDiagnostics();break;
-                    case 5:showChannels();break;
-                    case 6:blue();break;
-                    case 7:stopEngine();failureDialogShown=false;startEngine();break;
-                    case 8:retuneWithHbbtv();break;
-                    case 9:originalTv();break;
+                    case 3:resetNativeMode();break;
+                    case 4:share();break;
+                    case 5:copyDiagnostics();break;
+                    case 6:showChannels();break;
+                    case 7:blue();break;
+                    case 8:stopEngine();failureDialogShown=false;startEngine();break;
+                    case 9:retuneWithHbbtv();break;
+                    case 10:originalTv();break;
                 }
             }).setNegativeButton("CERRAR",null).show();
+    }
+    private void resetNativeMode(){
+        getPreferences(MODE_PRIVATE).edit()
+            .putBoolean("native_bridge_crash_armed",false).apply();
+        trace("Puentes nativos rearmados. Sal de la app y vuelve a abrirla para una nueva sesión");
+        new AlertDialog.Builder(this)
+            .setTitle("Puentes nativos rearmados")
+            .setMessage("Se ha borrado el modo recuperación. Cierra y vuelve a abrir O! para repetir el arranque nativo. No reinicies el motor en el mismo proceso.")
+            .setPositiveButton("ENTENDIDO",null).show();
     }
     private void retryTvSdk(){
         trace("Reintento manual de registro TVSDK");
@@ -328,8 +339,10 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     }
 
     private String diagnosticText(){
-        return "O! LOVEStv Lab 0.1.7\n"
-            +"TVSDK autorizado: "+tvsdkAuthorized
+        return "O! LOVEStv Lab 0.1.8\n"
+            +"Puente nativo en modo recuperación: "+
+                getPreferences(MODE_PRIVATE).getBoolean("native_bridge_crash_armed",false)
+            +"\nTVSDK autorizado: "+tvsdkAuthorized
             +"\nTVSDK estado: "+tvsdkStatus
             +"\nCanal: "+(position<0?"ninguno":channels.get(position).label())
             +"\nVídeo: "+hasVideo
@@ -340,7 +353,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             +"\n\n--- REGISTRO ACTUAL ---\n"+history;
     }
     private void diagnostics(){
-        new AlertDialog.Builder(this).setTitle("O! 0.1.7 · DIAGNÓSTICO")
+        new AlertDialog.Builder(this).setTitle("O! 0.1.8 · DIAGNÓSTICO")
             .setMessage(diagnosticText())
             .setPositiveButton("GUARDAR .TXT",(d,w)->saveDiagnostics())
             .setNeutralButton("COMPARTIR",(d,w)->share())
@@ -514,7 +527,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             }
         }catch(Throwable error){previousExit="Consulta de cierre falló: "+error.getMessage();}
         try(FileOutputStream out=new FileOutputStream(flightRecorder,false)){
-            out.write(("O! 0.1.7 registro persistente · "+System.currentTimeMillis()+"\n")
+            out.write(("O! 0.1.8 registro persistente · "+System.currentTimeMillis()+"\n")
                 .getBytes(StandardCharsets.UTF_8));
             out.getFD().sync();
         }catch(Throwable error){Log.w(TAG,"No se pudo crear diario",error);}
