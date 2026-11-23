@@ -46,6 +46,9 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     private int position=-1,requestId;
     private boolean foreground,hasVideo,interactive,pendingBlue;
     private boolean failureDialogShown;
+    private boolean tvsdkAuthorized,tvsdkRegistering;
+    private int tvsdkEpoch;
+    private String tvsdkStatus="sin registrar";
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
@@ -148,6 +151,32 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     }
     private void startEngine(){
         if(!foreground||!hasVideo)return;
+        if(!tvsdkAuthorized){
+            if(tvsdkRegistering)return;
+            tvsdkRegistering=true;
+            tvsdkStatus="Solicitando autorización local TVSDK";
+            final int epoch=++tvsdkEpoch;
+            trace("TVSDK: registro requerido antes de iniciar HbbTV");
+            show("Registrando TVSDK TCL…");
+            TclTvSdkRegistration.begin(this,
+                detail->ui.post(()->{if(epoch==tvsdkEpoch)trace(detail);}),
+                (accepted,status)->{
+                    if(epoch!=tvsdkEpoch)return;
+                    tvsdkRegistering=false;
+                    tvsdkAuthorized=accepted;
+                    tvsdkStatus=status;
+                    trace("TVSDK: "+status);
+                    if(!foreground)return;
+                    if(!accepted){
+                        show("TVSDK rechazó el registro · OK > Diagnóstico");
+                        showFailureDialog(status);
+                        return;
+                    }
+                    trace("TVSDK aceptado. Iniciando HbbTV");
+                    startEngine();
+                });
+            return;
+        }
         if(hbbtv==null||hbbtv.isClosed())hbbtv=new TclHbbtvClient(this,overlay,this);
         if(!hbbtv.isStarting()&&!hbbtv.isReady())hbbtv.start();
     }
@@ -210,26 +239,39 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     }
     private void menu(){
         trace("Menú solicitado desde mando");
-        String[] actions={"Ver diagnóstico", "GUARDAR diagnóstico .TXT en Descargas",
-            "Compartir registro", "Copiar diagnóstico",
-            "Cambiar canal TDT", "Abrir LOVEStv (AZUL)",
-            "Reiniciar motor HbbTV", "Resintonizar con HbbTV activo",
-            "Comparar con TV original TCL"};
-        new AlertDialog.Builder(this).setTitle("O! 0.1.4 · MENÚ Y DIAGNÓSTICO")
+        String[] actions={"Ver diagnóstico TVSDK / HbbTV",
+            "GUARDAR diagnóstico .TXT en Descargas",
+            "Reintentar registro TVSDK", "Compartir registro",
+            "Copiar diagnóstico", "Cambiar canal TDT",
+            "Abrir LOVEStv (AZUL)", "Reiniciar motor HbbTV",
+            "Resintonizar con HbbTV activo", "Comparar con TV original TCL"};
+        new AlertDialog.Builder(this).setTitle("O! 0.1.5 · MENÚ Y DIAGNÓSTICO")
             .setItems(actions,(d,which)->{
                 switch(which){
                     case 0:diagnostics();break;
                     case 1:saveDiagnostics();break;
-                    case 2:share();break;
-                    case 3:copyDiagnostics();break;
-                    case 4:showChannels();break;
-                    case 5:blue();break;
-                    case 6:stopEngine();failureDialogShown=false;startEngine();break;
-                    case 7:retuneWithHbbtv();break;
-                    case 8:originalTv();break;
+                    case 2:retryTvSdk();break;
+                    case 3:share();break;
+                    case 4:copyDiagnostics();break;
+                    case 5:showChannels();break;
+                    case 6:blue();break;
+                    case 7:stopEngine();failureDialogShown=false;startEngine();break;
+                    case 8:retuneWithHbbtv();break;
+                    case 9:originalTv();break;
                 }
             }).setNegativeButton("CERRAR",null).show();
     }
+    private void retryTvSdk(){
+        trace("Reintento manual de registro TVSDK");
+        ++tvsdkEpoch;
+        tvsdkRegistering=false;
+        tvsdkAuthorized=false;
+        tvsdkStatus="reintentando";
+        failureDialogShown=false;
+        stopEngine();
+        startEngine();
+    }
+
     /** Forces a fresh TDT tune while keeping the native HbbTV engine alive. */
     private void retuneWithHbbtv(){
         if(position<0 || hbbtv==null || !hbbtv.isReady()){
@@ -255,15 +297,17 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     }
 
     private String diagnosticText(){
-        return "O! LOVEStv Lab 0.1.4\n"
-            +"Canal: "+(position<0?"ninguno":channels.get(position).label())
+        return "O! LOVEStv Lab 0.1.5\n"
+            +"TVSDK autorizado: "+tvsdkAuthorized
+            +"\nTVSDK estado: "+tvsdkStatus
+            +"\nCanal: "+(position<0?"ninguno":channels.get(position).label())
             +"\nVídeo: "+hasVideo
             +"\nHbbTV: "+(hbbtv==null?"sin iniciar":hbbtv.isReady()?"preparado":"no preparado")
             +"\n"+(hbbtv==null?"Sin cliente nativo":hbbtv.snapshot())
             +"\n\n--- Registro ---\n"+history;
     }
     private void diagnostics(){
-        new AlertDialog.Builder(this).setTitle("O! 0.1.4 · DIAGNÓSTICO")
+        new AlertDialog.Builder(this).setTitle("O! 0.1.5 · DIAGNÓSTICO")
             .setMessage(diagnosticText())
             .setPositiveButton("GUARDAR .TXT",(d,w)->saveDiagnostics())
             .setNeutralButton("COMPARTIR",(d,w)->share())
@@ -396,6 +440,9 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     @Override protected void onStop(){
         foreground=false;requestId++;
         used.clear();pendingBlue=false;
+        ++tvsdkEpoch;
+        tvsdkRegistering=false;tvsdkAuthorized=false;
+        tvsdkStatus="sesión detenida";
         failureDialogShown=false;
         stopEngine();tv.setCallback(null);tv.reset();
         ui.removeCallbacksAndMessages(null);
