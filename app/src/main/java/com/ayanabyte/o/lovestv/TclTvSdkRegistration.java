@@ -110,7 +110,7 @@ final class TclTvSdkRegistration {
 
     private static String findVerifiedString(byte[] dex)throws Exception {
         if(dex.length<112 || dex[0]!='d' || dex[1]!='e' ||
-           dex[2]!='x' || dex[3]!='\\n') {
+           dex[2]!='x' || dex[3]!='\n') {
             throw new IllegalStateException("DEX no reconocido");
         }
         long count=u32(dex,56);
