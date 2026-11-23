@@ -26,7 +26,7 @@ final class TclHbbtvClient {
     private final Handler ui=new Handler(Looper.getMainLooper());
     private final Map<Integer,Integer> keyCodes=new HashMap<>();
     private Object engine,browser;
-    private boolean closed,starting,ready,browserInitialized;
+    private boolean closed,starting,ready,browserInitialized,serverInitialized,browserStarting;
 
     TclHbbtvClient(Activity activity,FrameLayout layer,Callback callback) {
         this.activity=activity; this.layer=layer; this.callback=callback;
@@ -38,105 +38,142 @@ final class TclHbbtvClient {
         }
     }
     boolean isReady(){return ready&&!closed;}
-    boolean isStarting(){return starting&&!closed;}
+    boolean isStarting(){return (starting||browserStarting)&&!closed;}
+    boolean isServerInitialized(){return serverInitialized&&!closed;}
     boolean isClosed(){return closed;}
     boolean isBrowserInitialized(){return browserInitialized&&!closed;}
 
+    /**
+     * Stage A. TVSDK has already authorized this process; initialize only
+     * vendor HbbTV server. Browser and its native threads are NOT started.
+     */
     void start() {
-        if(closed||starting||ready)return;
+        if(closed||starting||serverInitialized)return;
         starting=true;
-        try {
+        try{
+            phase("SERVIDOR_INIT_INICIO",true);
             boolean webkitOk=VendorWebkitAccess.prepare(activity,this::report);
-            report("Preparación TCL WebKit terminada, visible="+webkitOk);
-            report("Puentes nativos: cargando clase HbbtvServer antes de init");
+            report("FASE SERVIDOR: TCL WebKit accesible="+webkitOk);
             Class<?> serverClass=Class.forName("com.tcl.hbbtv.HbbtvServer");
-            // A crash during the native pre-init phase leaves an on-disk
-            // marker. Next launch automatically runs in recovery mode.
             android.content.SharedPreferences flags=activity.getPreferences(Context.MODE_PRIVATE);
             boolean safeMode=flags.getBoolean("native_bridge_crash_armed",false);
             if(!flags.getBoolean("enable_native_bridges",false)){
-                report("Puentes nativos: desactivados por defecto para aislar SIGSEGV");
+                report("FASE SERVIDOR: puentes nativos de prueba desactivados");
             }else if(safeMode){
-                report("Puentes nativos: MODO RECUPERACIÓN tras salida anterior; no se instalan");
+                report("FASE SERVIDOR: puentes omitidos por modo recuperación");
             }else{
                 flags.edit().putBoolean("native_bridge_crash_armed",true).commit();
-                report("FASE NATIVE: preparación antes de HbbtvServer.init");
+                report("FASE NATIVA: instalando puentes opt-in");
                 NativeBridgePreparation.prepare(activity,this::report);
-                report("FASE NATIVE: preparación terminada");
-                ui.postDelayed(()->{
-                    if(!closed){
-                        flags.edit().putBoolean("native_bridge_crash_armed",false).apply();
-                        report("Puentes nativos: sesión sobrevivió 20 s; protección reiniciada");
-                    }
-                },20000);
+                flags.edit().putBoolean("native_bridge_crash_armed",false).commit();
+                report("FASE NATIVA: puentes finalizados");
             }
-            report("HbbtvServer.getInstance → init");
+            phase("SERVIDOR_INIT_CALL",true);
             engine=serverClass.getMethod("getInstance",Context.class).invoke(null,activity);
             Object initResult=invoke(engine,"init");
             report("HbbtvServer.init respuesta="+initResult);
             check(initResult);
             prepareKeys();
             registerEvents();
+            serverInitialized=true;
+            starting=false;
+            phase("SERVIDOR_INIT_OK",false);
+            report("FASE SERVIDOR: preparado SIN Tbrowser.initTbrowser");
+            for(int delay:new int[]{3000,8000,15000}){
+                ui.postDelayed(()->{
+                    if(!closed&&serverInitialized&&!browserStarting&&!browserInitialized)
+                        report("FASE SERVIDOR: vivo +"+delay+"ms SIN navegador");
+                },delay);
+            }
+        }catch(Throwable error){fail("Error preparando servidor TCL",error);}
+    }
+
+    /** Stage B, explicitly triggered by first blue press after server init. */
+    void startBrowser(){
+        if(closed||!serverInitialized||browserStarting||browserInitialized)return;
+        browserStarting=true;
+        try{
+            phase("TBROWSER_INIT_INICIO",true);
             browser=singleton("com.tcl.tbrowser.Tbrowser");
             Class<?> listenerClass=Class.forName("com.tcl.tbrowser.TbrowserInitEventListener");
             Object listener=Proxy.newProxyInstance(listenerClass.getClassLoader(),
                 new Class<?>[]{listenerClass},(proxy,method,args)->{
-                    if(method.getDeclaringClass()==Object.class)return objectMethod(proxy,method,args);
-                    if("onSuccess".equals(method.getName())) {
+                    if(method.getDeclaringClass()==Object.class)
+                        return objectMethod(proxy,method,args);
+                    if("onSuccess".equals(method.getName())){
                         boolean good=args==null||args.length==0||!Boolean.FALSE.equals(args[0]);
-                        ui.post(()->{if(!closed){if(good)browserReady();else fail("Navegador TCL rechazó el inicio",null);}});
-                    } else if("onFailure".equals(method.getName())||"onError".equals(method.getName())) {
+                        ui.post(()->{
+                            if(!closed){
+                                if(good)browserReady();
+                                else fail("Navegador TCL rechazó el inicio",null);
+                            }
+                        });
+                    }else if("onFailure".equals(method.getName())||"onError".equals(method.getName())){
                         ui.post(()->fail("Navegador TCL notificó error",null));
                     }
                     return defaultValue(method.getReturnType());
                 });
-            browser.getClass().getMethod("setTbrowserInitEventListener",listenerClass).invoke(browser,listener);
-            report("Tbrowser.initTbrowser");
+            browser.getClass().getMethod("setTbrowserInitEventListener",listenerClass)
+                .invoke(browser,listener);
+            report("FASE NAVEGADOR: invocando Tbrowser.initTbrowser SIN initWebView manual");
             browser.getClass().getMethod("initTbrowser",Context.class,ViewGroup.class,boolean.class)
                 .invoke(browser,activity,layer,false);
             ui.postDelayed(()->{
-                if(!closed&&starting&&!ready)fail("Sin respuesta del navegador en 25 s; "+snapshot(),null);
+                if(!closed&&browserStarting&&!browserInitialized)
+                    fail("Sin respuesta del navegador TCL en 25s",null);
             },25000);
-        } catch(Throwable error) {fail("Error arrancando motor HbbTV TCL",error);}
+        }catch(Throwable error){fail("Error inicializando Tbrowser TCL",error);}
     }
 
-    private void browserReady() {
-        if(closed||ready||browserInitialized)return;
-        try {
-            report("FASE NAVEGADOR: Tbrowser listo; servidor HbbTV aún no arrancado");
-            TclBrowserCanvas.prepare(browser,layer,this::report);
-            browserInitialized=true;
-            starting=false;
-            report("FASE NAVEGADOR: preparado; esperando botón AZUL para HbbtvServer.start");
-            for(int delay:new int[]{3000,8000,15000}){
-                ui.postDelayed(()->{
-                    if(!closed&&!ready)report("FASE NAVEGADOR: vivo "+delay+"ms SIN HbbtvServer.start");
-                },delay);
-            }
-        }catch(Throwable error){fail("Error preparando navegador",error);}
+    private void browserReady(){
+        if(closed||browserInitialized)return;
+        browserStarting=false;
+        browserInitialized=true;
+        phase("TBROWSER_CALLBACK_OK_SIN_LIENZO",false);
+        report("FASE NAVEGADOR: preparado SIN llamar initWebView ni HbbtvServer.start"
+            +" · vistas="+layer.getChildCount());
+        for(int delay:new int[]{3000,8000,15000}){
+            ui.postDelayed(()->{
+                if(!closed&&browserInitialized&&!ready)
+                    report("FASE NAVEGADOR: vivo +"+delay+"ms SIN HbbtvServer.start");
+            },delay);
+        }
     }
 
+    /** Stage C, only on another explicit blue press. */
     void activate(){
         if(closed||ready||!browserInitialized){
-            report("FASE START: no se puede activar: cerrado="+closed+" browser="+browserInitialized+" ready="+ready);
+            report("FASE START: no disponible closed="+closed+
+                " browser="+browserInitialized+" ready="+ready);
             return;
         }
         android.content.SharedPreferences flags=activity.getPreferences(Context.MODE_PRIVATE);
         flags.edit().putBoolean("hbbtv_start_crash_armed",true).commit();
+        phase("HBBTV_START_INICIO",true);
         try{
-            report("FASE START: invocando HbbtvServer.start por botón AZUL");
+            report("FASE START: invocando HbbtvServer.start sin initWebView manual");
             Object result=invoke(engine,"start");
             report("FASE START: respuesta="+result);
             check(result);
             ready=true;
+            phase("HBBTV_START_DEVOLVIO",true);
             callback.ready();
             ui.postDelayed(()->{
                 if(!closed&&ready){
                     flags.edit().putBoolean("hbbtv_start_crash_armed",false).commit();
-                    report("FASE START: proceso estable 15 s después de start");
+                    phase("HBBTV_START_ESTABLE_15S",false);
+                    report("FASE START: proceso vivo 15s después de start");
                 }
             },15000);
-        }catch(Throwable e){fail("Error HbbtvServer.start",e);}
+        }catch(Throwable error){fail("Error HbbtvServer.start",error);}
+    }
+
+    /** Persist stage before each native call; current/previous process can be compared. */
+    private void phase(String stage,boolean armed){
+        activity.getPreferences(Context.MODE_PRIVATE).edit()
+            .putString("last_native_stage",stage)
+            .putBoolean("stage_armed",armed).commit();
+        report("CONTROL DE FASE: "+stage+" · pendiente="+armed);
     }
 
     /** State and browser visibility are diagnostic only, not proof that LOVEStv loaded. */
@@ -224,7 +261,7 @@ final class TclHbbtvClient {
 
     void close() {
         if(closed)return;
-        closed=true;starting=false;ready=false;browserInitialized=false;
+        closed=true;starting=false;ready=false;browserInitialized=false;serverInitialized=false;browserStarting=false;
         ui.removeCallbacksAndMessages(null);
         if(engine!=null)try{invoke(engine,"stopAsync");}catch(Throwable e){Log.w(TAG,"stopAsync",e);}
         if(browser!=null)try{invoke(browser,"destoryPage");}catch(Throwable e){Log.w(TAG,"destoryPage",e);}

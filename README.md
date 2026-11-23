@@ -59,3 +59,14 @@ En 0.1.8 TVSDK autorizó O! y la WebView TCL se creó, pero el proceso sufrió S
 0.1.9 separa dos fases: TVSDK/HbbtvServer.init/Tbrowser.init (sin llamar HbbtvServer.start), y activación explícita del servidor con el botón AZUL. En la primera fase registra tres latidos sin invocar JNI (+3, +8, +15s). En la segunda registra el instante de start y deja un marcador persistente hasta sobrevivir 15 segundos. Los eventos HbbTV se registran con argumentos limitados. La preparación de puentes nativos es experimental y está desactivada por defecto, sin alterar la aplicación antigua ni firmware TCL.
 
 **Prueba:** abre Antena 3, espera diez segundos sin pulsar azul, después pulsa AZUL. Si se cierra, vuelve a abrir la app y guarda el diagnóstico TXT: incluirá el registro anterior y el marcador de la fase donde ocurrió el cierre.
+
+
+## O! 0.2.0 — diagnóstico escalonado de SIGSEGV
+
+El registro de 0.1.9 confirmó TVSDK autorizado y un SIGSEGV antes de pulsar AZUL y **antes** de HbbtvServer.start; el último evento previo era \`Tbrowser.onSuccess\` y el initWebView manual. Por ello la 0.2.0 aplica tres fases independientes, con marcadores sincronizados en disco antes de cada llamada al motor:
+
+1. TVSDK + HbbtvServer.init + teclas/eventos, sin navegador. Se inicializa automáticamente; el usuario debe esperar 10 segundos.
+2. Primer botón AZUL: Tbrowser.initTbrowser, **sin** llamar a initWebView manual ni HbbtvServer.start. Esperar otros 10 segundos.
+3. Segundo botón AZUL: HbbtvServer.start. Esperar 15 segundos; un tercer AZUL envía la tecla al motor si sigue vivo.
+
+El menú OK → GUARDAR diagnóstico TXT incluye fase actual y registro recuperado de cierre. El diagnóstico de ciclo de vida registra foco de ventana y onPause. Puentes nativos del antiguo software siguen desactivados por defecto. El firmware y la aplicación TCL originales permanecen intactos. El resultado confirma solo la fase que se haya alcanzado, no el funcionamiento de LOVEStv.
