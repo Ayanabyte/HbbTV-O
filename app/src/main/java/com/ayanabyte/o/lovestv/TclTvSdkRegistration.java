@@ -48,8 +48,13 @@ final class TclTvSdkRegistration {
             boolean accepted=false;
             String outcome;
             try {
-                log.accept("TVSDK: iniciando registro local para PID="+android.os.Process.myPid()
-                    +" UID="+android.os.Process.myUid());
+                String processName=processName();
+                log.accept("TVSDK: iniciando registro PID="+android.os.Process.myPid()
+                    +" UID="+android.os.Process.myUid()
+                    +" proceso="+processName
+                    +" paquete="+app.getPackageName());
+                log.accept("TVSDK: coincidencia con nombre de proceso TCL="
+                    +VENDOR_PACKAGE.equals(processName));
                 ApplicationInfo vendor=app.getPackageManager().getApplicationInfo(VENDOR_PACKAGE,0);
                 if(vendor.sourceDir==null)throw new IllegalStateException("TCL TV no tiene APK accesible");
                 File installed=new File(vendor.sourceDir);
@@ -62,7 +67,7 @@ final class TclTvSdkRegistration {
                 if(authorization==null)throw new IllegalStateException("Autorización firmada verificada no encontrada en TCL TV");
                 log.accept("TVSDK: autorización presente y verificada; valor no exportado");
                 Class<?> managerClass=Class.forName("com.tcl.tvmanager.TTvFunctionManager",true,app.getClassLoader());
-                Object manager=managerClass.getMethod("getInstance",Context.class).invoke(null,app);
+                Object manager=managerClass.getMethod("getInstance",Context.class).invoke(null,context);
                 if(manager==null)throw new IllegalStateException("TTvFunctionManager.getInstance devolvió null");
                 Method authorize=managerClass.getMethod("systemAuthorized",String.class);
                 Object response=authorize.invoke(manager,authorization);
@@ -145,6 +150,20 @@ final class TclTvSdkRegistration {
     private static long u32(byte[] bytes,int pos) {
         return ((long)bytes[pos]&255)|(((long)bytes[pos+1]&255)<<8)
             |(((long)bytes[pos+2]&255)<<16)|(((long)bytes[pos+3]&255)<<24);
+    }
+
+    private static String processName(){
+        try(InputStream in=new FileInputStream("/proc/self/cmdline");
+            ByteArrayOutputStream out=new ByteArrayOutputStream()){
+            for(int i=0;i<256;i++){
+                int value=in.read();
+                if(value<=0)break;
+                out.write(value);
+            }
+            return out.toString("UTF-8");
+        }catch(Throwable failure){
+            return "desconocido ("+failure.getClass().getSimpleName()+")";
+        }
     }
 
     private static String sha256File(File file)throws Exception {
