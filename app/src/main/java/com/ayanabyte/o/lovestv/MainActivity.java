@@ -77,9 +77,9 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
         screen.addView(message,p);
         setContentView(screen);
         recoverPreviousSession();
-        trace("Nueva sesión de O! 0.2.1; PID="+android.os.Process.myPid()
+        trace("Nueva sesión de O! 0.2.2; PID="+android.os.Process.myPid()
             +" UID="+android.os.Process.myUid()+" proceso="+getApplicationInfo().processName);
-        show("O! · LOVEStv Lab 0.2.1\nBuscando TDT…");
+        show("O! · LOVEStv Lab 0.2.2\nBuscando TDT…");
     }
 
     @Override protected void onStart(){
@@ -212,6 +212,12 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
         if(!hbbtv.isStarting()&&!hbbtv.isServerInitialized())hbbtv.start();
     }
     private void blue(){
+        int stage=getIntent().getIntExtra("probe_stage",0);
+        if(stage!=0){
+            trace("AZUL omitido: prueba "+stage+" no inicializa Tbrowser");
+            show("Prueba "+stage+" · servidor aislado. Espera 15 s y exporta TXT.");
+            return;
+        }
         trace("AZUL pulsado; vídeo="+hasVideo+" canal="+current()
             +" · experimento="+(getIntent().getBooleanExtra("browser_without_server",false)
                 ?"SOLO Tbrowser":"Servidor+Tbrowser"));
@@ -268,7 +274,11 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     }
     @Override public void report(String text){
         trace(text);
-        if(text.startsWith("FASE SERVIDOR: preparado")){
+        if(text.startsWith("FASE SERVIDOR: init completado")
+            || text.startsWith("FASE SERVIDOR: SOLO getInstance")
+            || text.startsWith("FASE SERVIDOR: init y eventos preparados")){
+            show("Prueba del servidor TCL aislado · espera 15 s sin pulsar AZUL");
+        }else if(text.startsWith("FASE SERVIDOR: preparado")){
             show("TVSDK y HbbtvServer.init preparados · espera unos segundos y pulsa AZUL");
         }else if(text.startsWith("FASE NAVEGADOR: preparado")){
             show("Tbrowser preparado sin lienzo manual · espera unos segundos; pulsa AZUL para iniciar HbbTV");
@@ -318,7 +328,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             "Copiar diagnóstico", "Cambiar canal TDT",
             "Abrir LOVEStv (AZUL)", "Reiniciar motor HbbTV",
             "Resintonizar con HbbTV activo", "Comparar con TV original TCL"};
-        new AlertDialog.Builder(this).setTitle("O! 0.2.1 · MENÚ Y DIAGNÓSTICO")
+        new AlertDialog.Builder(this).setTitle("O! 0.2.2 · MENÚ Y DIAGNÓSTICO")
             .setItems(actions,(d,which)->{
                 switch(which){
                     case 0:diagnostics();break;
@@ -380,11 +390,11 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
     }
 
     private String diagnosticText(){
-        return "O! LOVEStv Lab 0.2.1\n"
+        return "O! LOVEStv Lab 0.2.2\n"
             +"Puente nativo en modo recuperación: "+
                 getPreferences(MODE_PRIVATE).getBoolean("native_bridge_crash_armed",false)
-            +"\nPrueba: "+(getIntent().getBooleanExtra("browser_without_server",false)
-                ?"Tbrowser SIN HbbtvServer.init":"Tbrowser CON HbbtvServer.init")
+            +"\nPrueba fase: "+getIntent().getIntExtra("probe_stage",0)
+            +"\nTbrowser solo="+getIntent().getBooleanExtra("browser_without_server",false)
             +"\nServidor inicializado (o experimentalmente omitido): "+(hbbtv!=null&&hbbtv.isServerInitialized())
             +"\nNavegador inicializado: "+(hbbtv!=null&&hbbtv.isBrowserInitialized())
             +"\nUltima fase registrada: "+getPreferences(MODE_PRIVATE).getString("last_native_stage","ninguna")
@@ -402,7 +412,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             +"\n\n--- REGISTRO ACTUAL ---\n"+history;
     }
     private void diagnostics(){
-        new AlertDialog.Builder(this).setTitle("O! 0.2.1 · DIAGNÓSTICO")
+        new AlertDialog.Builder(this).setTitle("O! 0.2.2 · DIAGNÓSTICO")
             .setMessage(diagnosticText())
             .setPositiveButton("GUARDAR .TXT",(d,w)->saveDiagnostics())
             .setNeutralButton("COMPARTIR",(d,w)->share())
@@ -576,7 +586,7 @@ public final class MainActivity extends Activity implements TclHbbtvClient.Callb
             }
         }catch(Throwable error){previousExit="Consulta de cierre falló: "+error.getMessage();}
         try(FileOutputStream out=new FileOutputStream(flightRecorder,false)){
-            out.write(("O! 0.1.8 registro persistente · "+System.currentTimeMillis()+"\n")
+            out.write(("O! 0.2.2 registro persistente · "+System.currentTimeMillis()+"\n")
                 .getBytes(StandardCharsets.UTF_8));
             out.getFD().sync();
         }catch(Throwable error){Log.w(TAG,"No se pudo crear diario",error);}

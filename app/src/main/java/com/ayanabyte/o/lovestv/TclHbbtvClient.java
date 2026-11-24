@@ -28,11 +28,17 @@ final class TclHbbtvClient {
     private Object engine,browser;
     private boolean closed,starting,ready,browserInitialized,serverInitialized,browserStarting;
     private final boolean withoutServer;
+    private final int probeStage;
 
     TclHbbtvClient(Activity activity,FrameLayout layer,Callback callback) {
         this.activity=activity; this.layer=layer; this.callback=callback;
-        this.withoutServer=activity.getIntent().getBooleanExtra("browser_without_server",false);
-        report("MODO DE PRUEBA: "+(withoutServer?"Tbrowser SIN HbbtvServer.init":"Tbrowser CON HbbtvServer.init"));
+        this.probeStage=activity.getIntent().getIntExtra("probe_stage",0);
+        this.withoutServer=probeStage==0;
+        String mode=probeStage==0?"Tbrowser sin servidor"
+            :probeStage==1?"HbbtvServer.getInstance sin init"
+            :probeStage==2?"HbbtvServer.init sin registrar eventos"
+            :"HbbtvServer.init con eventos";
+        report("MODO DE PRUEBA: "+probeStage+" · "+mode);
         try {
             System.loadLibrary("olovetvprobe");
             report("Proceso ABI="+nativeBits()+" bits");
@@ -79,28 +85,58 @@ final class TclHbbtvClient {
                 return;
             }
             Class<?> serverClass=Class.forName("com.tcl.hbbtv.HbbtvServer");
-            phase("SERVIDOR_INIT_CALL",true);
+            phase("SERVIDOR_GETINSTANCE_INICIO",true);
             engine=serverClass.getMethod("getInstance",Context.class).invoke(null,activity);
+            report("FASE SERVIDOR: HbbtvServer.getInstance devolvió instancia="+(engine!=null));
+            if(engine==null)throw new IllegalStateException("HbbtvServer.getInstance=null");
+            if(probeStage==1){
+                serverInitialized=true;
+                starting=false;
+                phase("SOLO_GETINSTANCE_OK",false);
+                report("FASE SERVIDOR: SOLO getInstance; NO init, NO eventos, NO navegador");
+                heartbeatWithoutBrowser();
+                return;
+            }
+            phase("SERVIDOR_INIT_CALL",true);
             Object initResult=invoke(engine,"init");
             report("HbbtvServer.init respuesta="+initResult);
             check(initResult);
+            if(probeStage==2){
+                serverInitialized=true;
+                starting=false;
+                phase("SERVIDOR_INIT_SIN_EVENTOS_OK",false);
+                report("FASE SERVIDOR: init completado SIN prepareKeys ni registerEvents ni Tbrowser");
+                heartbeatWithoutBrowser();
+                return;
+            }
+            phase("SERVIDOR_PREPARAR_TECLAS",true);
             prepareKeys();
+            phase("SERVIDOR_REGISTRAR_EVENTOS",true);
             registerEvents();
             serverInitialized=true;
             starting=false;
-            phase("SERVIDOR_INIT_OK",false);
-            report("FASE SERVIDOR: preparado SIN Tbrowser.initTbrowser");
-            for(int delay:new int[]{3000,8000,15000}){
-                ui.postDelayed(()->{
-                    if(!closed&&serverInitialized&&!browserStarting&&!browserInitialized)
-                        report("FASE SERVIDOR: vivo +"+delay+"ms SIN navegador");
-                },delay);
-            }
+            phase("SERVIDOR_INIT_CON_EVENTOS_OK",false);
+            report("FASE SERVIDOR: init y eventos preparados SIN Tbrowser");
+            heartbeatWithoutBrowser();
         }catch(Throwable error){fail("Error preparando servidor TCL",error);}
+    }
+
+    private void heartbeatWithoutBrowser(){
+        for(int delay:new int[]{3000,8000,15000,25000}){
+            ui.postDelayed(()->{
+                if(!closed&&serverInitialized&&!browserStarting&&!browserInitialized)
+                    report("CONTROL ESTABILIDAD: proceso vivo +"+delay
+                        +"ms · prueba="+probeStage+" · SIN navegador");
+            },delay);
+        }
     }
 
     /** Stage B, explicitly triggered by first blue press after server init. */
     void startBrowser(){
+        if(probeStage!=0){
+            report("Tbrowser omitido deliberadamente en prueba "+probeStage);
+            return;
+        }
         if(closed||!serverInitialized||browserStarting||browserInitialized)return;
         browserStarting=true;
         try{

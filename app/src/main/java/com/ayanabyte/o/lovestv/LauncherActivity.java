@@ -53,21 +53,22 @@ public final class LauncherActivity extends Activity {
         root.setGravity(Gravity.CENTER_VERTICAL);
         root.setBackgroundColor(Color.BLACK);
         TextView title=new TextView(this);
-        title.setText("O! · LOVEStv Lab 0.2.1");
+        title.setText("O! · LOVEStv Lab 0.2.2");
         title.setTextColor(Color.WHITE);
         title.setTextSize(28);
         root.addView(title);
         TextView subtitle=new TextView(this);
-        subtitle.setText("Prueba aislada del navegador TCL\n"+
-            "La pantalla de diagnóstico permanece en un proceso separado.");
+        subtitle.setText("Comparativa TVSDK / HbbTV sin navegador.\n"+
+            "Cada prueba se ejecuta aislada. La pantalla de diagnóstico se conserva.");
         subtitle.setTextColor(0xFFBBBBBB);
         subtitle.setTextSize(17);
         subtitle.setPadding(0,12,0,24);
         root.addView(subtitle);
-        Button solo=actionButton("1 · Tbrowser SIN HbbtvServer.init",()->launch(true));
-        root.addView(solo);
-        Button combined=actionButton("2 · Tbrowser CON HbbtvServer.init",()->launch(false));
-        root.addView(combined);
+        Button recommended=actionButton("1 · HbbtvServer.init SIN eventos (prueba principal)",()->launch(2));
+        root.addView(recommended);
+        root.addView(actionButton("2 · Solo HbbtvServer.getInstance (sin init)",()->launch(1)));
+        root.addView(actionButton("3 · HbbtvServer.init CON eventos (reproduce fallo)",()->launch(3)));
+        root.addView(actionButton("4 · Tbrowser SOLO (control estable)",()->launch(0)));
         root.addView(actionButton("GUARDAR diagnóstico completo .TXT",this::saveDiagnostics));
         root.addView(actionButton("VER último cierre",this::showCrash));
         status=new TextView(this);
@@ -76,10 +77,10 @@ public final class LauncherActivity extends Activity {
         status.setPadding(0,24,0,0);
         root.addView(status);
         setContentView(root);
-        solo.requestFocus();
+        recommended.requestFocus();
         log("Monitor O! iniciado; proceso seguro="+getApplicationInfo().processName
             +" PID="+android.os.Process.myPid());
-        showStatus("Selecciona la prueba 1. Si el navegador se cierra, volverás aquí.");
+        showStatus("Empieza por la prueba 1. Espera unos 15 segundos sin pulsar AZUL.\nSi se cierra el proceso, el monitor recuperará el registro.");
     }
 
     private Button actionButton(String label,Runnable action){
@@ -90,14 +91,25 @@ public final class LauncherActivity extends Activity {
         button.setOnClickListener(v->action.run());
         return button;
     }
-    private void launch(boolean browserOnly){
+    private static String stageLabel(int stage){
+        switch(stage){
+            case 0:return "Tbrowser solo";
+            case 1:return "getInstance sin init";
+            case 2:return "HbbtvServer.init sin eventos";
+            case 3:return "HbbtvServer.init con eventos";
+            default:return "desconocida";
+        }
+    }
+    private void launch(int stage){
         getSharedPreferences("MainActivity",MODE_PRIVATE).edit()
-            .putBoolean("browser_without_server",browserOnly).commit();
-        log("Lanzando prueba "+(browserOnly?"navegador solo":"servidor+navegador"));
+            .putInt("probe_stage",stage)
+            .putBoolean("browser_without_server",stage==0).commit();
+        log("Lanzando prueba "+stage+": "+stageLabel(stage));
         labWasStarted=true;
         try{
             Intent intent=new Intent(this,MainActivity.class);
-            intent.putExtra("browser_without_server",browserOnly);
+            intent.putExtra("browser_without_server",stage==0);
+            intent.putExtra("probe_stage",stage);
             startActivity(intent);
         }catch(Throwable error){
             showStatus("No se pudo abrir el laboratorio: "+error.getMessage());
@@ -186,17 +198,17 @@ public final class LauncherActivity extends Activity {
         }catch(Throwable error){return "Error leyendo traza: "+error.getMessage();}
     }
     private String diagnostic(){
-        return "O! LOVEStv Lab 0.2.1 · monitor seguro\n"
+        return "O! LOVEStv Lab 0.2.2 · monitor seguro\n"
             +"Paquete: "+getPackageName()+"\n"
             +"Último cierre: "+crashInfo+"\n"
-            +"Prueba configurada: "+(getSharedPreferences("MainActivity",MODE_PRIVATE)
-                .getBoolean("browser_without_server",true)?"Tbrowser SIN servidor":"Tbrowser CON servidor")
+            +"Prueba configurada: "+stageLabel(getSharedPreferences("MainActivity",MODE_PRIVATE)
+                .getInt("probe_stage",2))
             +"\n\n--- REGISTRO DEL PROCESO HBBTV ---\n"+readFlightRecord()
             +"\n\n--- TRAZA NATIVA SI ANDROID LA PROPORCIONA ---\n"+dumpSystemExitTrace()
             +"\n\n--- REGISTRO DEL MONITOR ---\n"+launcherLog;
     }
     private void saveDiagnostics(){
-        String filename="O-LOVEStv-diagnostico-0.2.1-"
+        String filename="O-LOVEStv-diagnostico-0.2.2-"
             +new SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date())+".txt";
         Uri entry=null;
         try{
