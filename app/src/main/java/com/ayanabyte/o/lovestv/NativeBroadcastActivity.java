@@ -39,6 +39,8 @@ public final class NativeBroadcastActivity extends Activity {
     private final Map<Integer,Integer> keys=new HashMap<>();
     private TvView tv;
     private FrameLayout nativeRoot;
+    private ViewGroup activityDecor;
+    private boolean useNativeBridges;
     private TextView debug;
     private Object server,browser,initListener,events,eventsListener;
     private boolean permissionOk,hasVideo,starting,started,failed;
@@ -49,9 +51,10 @@ public final class NativeBroadcastActivity extends Activity {
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
+        useNativeBridges=getIntent().getBooleanExtra("enable_native_bridges",false);
         diary[0]=new File(getFilesDir(),JOURNAL);
         try(FileOutputStream out=new FileOutputStream(diary[0],false)){
-            out.write(("O! LOVEStv Lab 0.2.4 · Activity con TvView y HbbTV\n")
+            out.write(("O! LOVEStv Lab 0.2.5 · Activity con TvView y HbbTV\n")
                 .getBytes(StandardCharsets.UTF_8));
             out.getFD().sync();
         }catch(Throwable ignored){}
@@ -63,11 +66,13 @@ public final class NativeBroadcastActivity extends Activity {
         nativeRoot=new FrameLayout(this);
         nativeRoot.setBackgroundColor(Color.TRANSPARENT);
         nativeRoot.setVisibility(View.VISIBLE);
-        nativeRoot.setAlpha(0f);
+        nativeRoot.setAlpha(1f); // Vendor browser host remains visible throughout init.
         nativeRoot.setClipChildren(false);
         nativeRoot.setClipToPadding(false);
         nativeRoot.setFocusable(false);
-        screen.addView(nativeRoot,new FrameLayout.LayoutParams(-1,-1));
+        // Do NOT mount here: the working TCL version mounts a separate
+        // overlay directly under the Activity decor after TDT video is ready.
+        // Root is attached by attachNativeRoot() before TVSDK / HbbTV init.
         debug=new TextView(this);
         debug.setTextSize(14);
         debug.setTextColor(Color.WHITE);
@@ -79,6 +84,9 @@ public final class NativeBroadcastActivity extends Activity {
         dp.bottomMargin=12;
         screen.addView(debug,dp);
         setContentView(screen);
+        activityDecor=(ViewGroup)getWindow().getDecorView();
+        trace("Preparación nativa en esta prueba="+useNativeBridges
+            +" · host del navegador se montará directamente en decor");
         trace("Activity de TDT/HbbTV creada en PID="+android.os.Process.myPid()
             +" UID="+android.os.Process.myUid()
             +" proceso="+android.app.Application.getProcessName()
@@ -163,6 +171,9 @@ public final class NativeBroadcastActivity extends Activity {
             failed=true;display("Proceso no coincide con TCL");return;
         }
         starting=true;
+        if(!attachNativeRoot()){
+            failed=true;display("No se pudo montar el navegador TCL en la Activity.");return;
+        }
         trace("FASE 1 TVSDK: registro con el canal ya sintonizado");
         TclTvSdkRegistration.begin(this,this::trace,(accepted,status)->{
             trace("FASE 1 TVSDK respuesta="+accepted+" "+status);
@@ -173,6 +184,32 @@ public final class NativeBroadcastActivity extends Activity {
             ui.post(NativeBroadcastActivity.this::initializeBrowser);
         });
     }
+    /**
+     * The TCL reference adds the HbbTV root directly to the Activity window
+     * decor, rather than nesting it inside the video-content FrameLayout.
+     */
+    private boolean attachNativeRoot(){
+        try{
+            trace("FASE VISTA ARMADA: decor="+activityDecor.getClass().getName()
+                +" rootParent="+(nativeRoot.getParent()==null?"null":nativeRoot.getParent().getClass().getName()));
+            if(nativeRoot.getParent() instanceof ViewGroup)
+                ((ViewGroup)nativeRoot.getParent()).removeView(nativeRoot);
+            nativeRoot.setAlpha(1f);
+            nativeRoot.setVisibility(View.VISIBLE);
+            nativeRoot.setFocusable(false);
+            activityDecor.addView(nativeRoot,new ViewGroup.LayoutParams(-1,-1));
+            nativeRoot.bringToFront();
+            trace("FASE VISTA OK: Activity decor parent="+
+                nativeRoot.getParent().getClass().getName()+
+                " window="+activityDecor.getWidth()+"x"+activityDecor.getHeight()+
+                " alpha="+nativeRoot.getAlpha()+" visible="+(nativeRoot.getVisibility()==View.VISIBLE));
+            return true;
+        }catch(Throwable err){
+            trace("FASE VISTA ERROR: "+err.getClass().getName()+" "+err.getMessage());
+            return false;
+        }
+    }
+
     private void initializeBrowser(){
         try{
             trace("FASE 2: preparando acceso TCL WebKit");
@@ -182,27 +219,30 @@ public final class NativeBroadcastActivity extends Activity {
             // certificate and UA adaptations; the SHA-verified bridge is local
             // to the O! process and never alters the device firmware.
             Class<?> serverClass=Class.forName("com.tcl.hbbtv.HbbtvServer");
-            trace("FASE 2: preinicialización ARM32 V138");
+            trace("FASE 2: puentes nativos solicitados="+useNativeBridges);
             android.content.SharedPreferences settings=getPreferences(MODE_PRIVATE);
-            if(settings.getBoolean("native_patch_crash_armed",false)){
-                trace("FASE 2: modo recuperación; se omiten puentes nativos tras cierre previo");
+            if(!useNativeBridges){
+                trace("FASE 2: experimento SIN puentes nativos; solo llamadas del fabricante");
+            }else if(settings.getBoolean("native_patch_crash_armed",false)){
+                trace("FASE 2: modo recuperación; omitidos tras un posible cierre");
             }else{
+                trace("FASE PATCH_ARMED: llamada a NativeBridgePreparation.prepare");
                 settings.edit().putBoolean("native_patch_crash_armed",true).commit();
                 NativeBridgePreparation.prepare(this,this::trace);
-                trace("FASE 2: terminó la preparación nativa");
+                trace("FASE PATCH_RETURNED: terminó la preparación nativa");
                 settings.edit().putBoolean("native_patch_crash_armed",false).commit();
             }
             trace("FASE 3: HbbtvServer.getInstance(Activity)");
             server=serverClass.getMethod("getInstance",Context.class).invoke(null,this);
             if(server==null)throw new IllegalStateException("HbbtvServer nulo");
-            trace("FASE 3: HbbtvServer.init");
+            trace("FASE HBBTV_INIT_ARMED: HbbtvServer.init");
             Object init=server.getClass().getMethod("init").invoke(server);
-            trace("FASE 3: HbbtvServer.init devuelve="+init);
+            trace("FASE HBBTV_INIT_RETURNED: HbbtvServer.init devuelve="+init);
             if(Boolean.FALSE.equals(init)||init instanceof Number&&((Number)init).intValue()<0)
                 throw new IllegalStateException("HbbtvServer rechazó init");
             prepareKeys();
             registerEvents();
-            trace("FASE 4: initTbrowser(Activity, root, false)"
+            trace("FASE TBROWSER_INIT_ARMED: initTbrowser(Activity, Activity decor root, false)"
                 +" root="+nativeRoot.getWidth()+"x"+nativeRoot.getHeight()
                 +" attached="+(nativeRoot.getParent()!=null)
                 +" visible="+(nativeRoot.getVisibility()==View.VISIBLE));
@@ -231,6 +271,7 @@ public final class NativeBroadcastActivity extends Activity {
                 .invoke(browser,initListener);
             browserClass.getMethod("initTbrowser",Context.class,ViewGroup.class,boolean.class)
                 .invoke(browser,this,nativeRoot,false);
+            trace("FASE TBROWSER_INIT_RETURNED: invocación Java completada");
             ui.postDelayed(()->{
                 if(starting&&!started&&!failed)
                     fail("Tbrowser sin callback en 25s",null);
@@ -240,9 +281,9 @@ public final class NativeBroadcastActivity extends Activity {
     private void browserReady(){
         if(started||failed)return;
         try{
-            trace("FASE 5: navegador listo, invocando HbbtvServer.start sin esperar AZUL");
+            trace("FASE HBBTV_START_ARMED: navegador listo, arrancando sin esperar AZUL");
             Object result=server.getClass().getMethod("start").invoke(server);
-            trace("FASE 5: HbbtvServer.start devuelve="+result);
+            trace("FASE HBBTV_START_RETURNED: "+result);
             if(Boolean.FALSE.equals(result)||
                 result instanceof Number&&((Number)result).intValue()<0)
                 throw new IllegalStateException("Servidor rechazó start");
@@ -369,6 +410,8 @@ public final class NativeBroadcastActivity extends Activity {
     }
     @Override protected void onDestroy(){
         trace("CICLO Activity onDestroy");
+        if(nativeRoot!=null&&nativeRoot.getParent() instanceof ViewGroup)
+            ((ViewGroup)nativeRoot.getParent()).removeView(nativeRoot);
         ui.removeCallbacksAndMessages(null);
         tv.setCallback(null);
         tv.reset();
