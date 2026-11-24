@@ -64,6 +64,10 @@ jobs:
           PY
       - name: Compile minimal APK only
         run: gradle -p minimal --no-daemon :app:assembleDebug
+      - name: Package exact minimal source compiled by CI
+        run: |
+          cd minimal
+          zip -q -r ../O-LOVEStv-Minimo-5317-fuentes.zip app/src app/build.gradle.kts build.gradle.kts settings.gradle.kts tools README.md -x '*/build/*'
       - name: Publish APK
         env:
           GH_TOKEN: ${{ github.token }}
@@ -72,12 +76,13 @@ jobs:
           TAG="o-minimal-5317-v0.0.1"
           FILE="O-LOVEStv-Minimo-5317-v0.0.1.apk"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$TAG" "$FILE" O-LOVEStv-Minimo-5317-fuentes.zip --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" \
               --prerelease --target "$GITHUB_SHA" \
               --title "O! LOVEStv — prueba mínima, fuente 5.3.17" \
               --notes "App mínima: una TDT, 5 clases HbbTV Messenger del código fuente 5.3.17, 3 adaptadores TCL O!, monitor de diagnóstico. No es el clon completo."
+            gh release upload "$TAG" O-LOVEStv-Minimo-5317-fuentes.zip --repo "$GITHUB_REPOSITORY" --clobber
           fi
       - name: Upload minimal APK to Actions
         uses: actions/upload-artifact@v4
