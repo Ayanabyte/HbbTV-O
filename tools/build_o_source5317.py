@@ -31,6 +31,8 @@ EXPECTED_STEPS = [
     "Restore reliable LOVEStv remote scanning and return to TDT",
     "Validate unreleased Channel+ 5.3.15 UX and timeshift fixes",
     "Repair repeated LOVEStv launches on the same TDT channel",
+    "Classify TCL native timeshift status logs",
+    "Classify HbbTV technical diagnostics for i18n inventory",
 ]
 OVERLAY_SHA = "fea649552eb21f7a5df958a20dbb1cf6915b186b701a346aca498be434b8173b"
 
@@ -50,14 +52,14 @@ def main() -> None:
     workflow_file = SOURCE / ".github/workflows/channelplus-537-lovestv.yml"
     workflow = yaml.safe_load(workflow_file.read_text(encoding="utf-8"))
     steps = workflow["jobs"]["hbbtv32"]["steps"]
-    actual_names = [step.get("name") for step in steps[1:11]]
+    actual_names = [step.get("name") for step in steps[1:13]]
     if actual_names != EXPECTED_STEPS:
         raise RuntimeError(f"Upstream source workflow changed unexpectedly: {actual_names}")
 
-    for index, step in enumerate(steps[1:11], start=1):
-        print(f"\n=== ORIGINAL SOURCE STEP {index}/10: {step['name']} ===", flush=True)
+    for index, step in enumerate(steps[1:13], start=1):
+        print(f"\n=== ORIGINAL SOURCE STEP {index}/12: {step['name']} ===", flush=True)
         subprocess.run(["bash", "-e", "-o", "pipefail", "-c", step["run"]],
-            cwd=SOURCE, check=True)
+            cwd=SOURCE / step.get("working-directory", "."), check=True)
 
     # Only packaging identity changes. Keep internal source class names as
     # provided: renaming them risks breaking the working integration.
