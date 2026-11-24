@@ -140,7 +140,7 @@ public final class NativeBroadcastActivity extends Activity {
                 if(!starting&&!started&&!failed)
                     ui.postDelayed(()->{
                         if(hasVideo&&!starting&&!started&&!failed)
-                            nativeRoot.post(NativeBroadcastActivity.this::startNative);
+                            ui.post(NativeBroadcastActivity.this::startNative);
                     },500);
             }
             @Override public void onVideoUnavailable(String input,int reason){
