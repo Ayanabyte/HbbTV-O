@@ -100,8 +100,11 @@ public final class IsolatedNativeProbeService extends Service {
     }
 
     @Override public void onDestroy(){
-        record("CICLO onDestroy servicio nativo; puede deberse al sistema");
+        record("CICLO onDestroy: termina voluntariamente el trabajador aislado");
         main.removeCallbacksAndMessages(null);
         super.onDestroy();
+        // Force a fresh vendor process for the next experiment. This process
+        // has NO TvView: the TV screen stays in the default app process.
+        android.os.Process.killProcess(android.os.Process.myPid());
     }
 }

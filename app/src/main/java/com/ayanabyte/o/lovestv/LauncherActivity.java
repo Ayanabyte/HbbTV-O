@@ -18,6 +18,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -50,10 +51,10 @@ public final class LauncherActivity extends Activity {
         LinearLayout root=new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(56,32,56,32);
-        root.setGravity(Gravity.CENTER_VERTICAL);
+        root.setGravity(Gravity.TOP);
         root.setBackgroundColor(Color.BLACK);
         TextView title=new TextView(this);
-        title.setText("O! · LOVEStv Lab 0.2.2");
+        title.setText("O! · LOVEStv Lab 0.2.3");
         title.setTextColor(Color.WHITE);
         title.setTextSize(28);
         root.addView(title);
@@ -64,11 +65,13 @@ public final class LauncherActivity extends Activity {
         subtitle.setTextSize(17);
         subtitle.setPadding(0,12,0,24);
         root.addView(subtitle);
-        Button recommended=actionButton("1 · HbbtvServer.init SIN eventos (prueba principal)",()->launch(2));
+        Button recommended=actionButton("1 · TDT protegida + getInstance aislado",()->launchSafe(1));
         root.addView(recommended);
-        root.addView(actionButton("2 · Solo HbbtvServer.getInstance (sin init)",()->launch(1)));
-        root.addView(actionButton("3 · HbbtvServer.init CON eventos (reproduce fallo)",()->launch(3)));
-        root.addView(actionButton("4 · Tbrowser SOLO (control estable)",()->launch(0)));
+        root.addView(actionButton("2 · TDT protegida + HbbtvServer.init aislado",()->launchSafe(2)));
+        root.addView(actionButton("3 · Laboratorio antiguo: getInstance",()->launch(1)));
+        root.addView(actionButton("4 · Laboratorio antiguo: init sin eventos",()->launch(2)));
+        root.addView(actionButton("5 · Laboratorio antiguo: Tbrowser solo",()->launch(0)));
+        root.addView(actionButton("6 · Laboratorio antiguo: init con eventos",()->launch(3)));
         root.addView(actionButton("GUARDAR diagnóstico completo .TXT",this::saveDiagnostics));
         root.addView(actionButton("VER último cierre",this::showCrash));
         status=new TextView(this);
@@ -76,11 +79,14 @@ public final class LauncherActivity extends Activity {
         status.setTextColor(Color.WHITE);
         status.setPadding(0,24,0,0);
         root.addView(status);
-        setContentView(root);
+        ScrollView scroll=new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(root);
+        setContentView(scroll);
         recommended.requestFocus();
         log("Monitor O! iniciado; proceso seguro="+getApplicationInfo().processName
             +" PID="+android.os.Process.myPid());
-        showStatus("Empieza por la prueba 1. Espera unos 15 segundos sin pulsar AZUL.\nSi se cierra el proceso, el monitor recuperará el registro.");
+        showStatus("Prueba primero TDT protegida + getInstance.\nLa imagen de TV debe seguir abierta si el motor nativo falla.");
     }
 
     private Button actionButton(String label,Runnable action){
@@ -98,6 +104,17 @@ public final class LauncherActivity extends Activity {
             case 2:return "HbbtvServer.init sin eventos";
             case 3:return "HbbtvServer.init con eventos";
             default:return "desconocida";
+        }
+    }
+    private void launchSafe(int stage){
+        log("Iniciando TDT protegida con servicio aislado stage="+stage);
+        try{
+            Intent intent=new Intent(this,SafeTvActivity.class);
+            intent.putExtra("probe_stage",stage);
+            startActivity(intent);
+        }catch(Throwable error){
+            log("Error abriendo TDT protegida "+error);
+            showStatus("No se pudo abrir TV protegida: "+error.getMessage());
         }
     }
     private void launch(int stage){
@@ -157,6 +174,17 @@ public final class LauncherActivity extends Activity {
             .setPositiveButton("GUARDAR .TXT",(d,w)->saveDiagnostics())
             .setNegativeButton("CERRAR",null).show();
     }
+    private String readIsolatedLog(){
+        File file=new File(getFilesDir(),IsolatedNativeProbeService.LOG_NAME);
+        if(!file.exists())return "No se ha ejecutado aún el servicio aislado.";
+        try(FileInputStream in=new FileInputStream(file);
+            ByteArrayOutputStream out=new ByteArrayOutputStream()){
+            byte[] bytes=new byte[4096];int n;
+            while((n=in.read(bytes))!=-1 && out.size()<64000)
+                out.write(bytes,0,Math.min(n,64000-out.size()));
+            return out.toString("UTF-8");
+        }catch(Throwable error){return "No se pudo leer la prueba: "+error;}
+    }
     private String readFlightRecord(){
         File file=new File(getFilesDir(),"o-lovestv-flight-record.log");
         if(!file.exists())return "Aún no existe registro persistente del laboratorio.";
@@ -198,17 +226,18 @@ public final class LauncherActivity extends Activity {
         }catch(Throwable error){return "Error leyendo traza: "+error.getMessage();}
     }
     private String diagnostic(){
-        return "O! LOVEStv Lab 0.2.2 · monitor seguro\n"
+        return "O! LOVEStv Lab 0.2.3 · monitor seguro\n"
             +"Paquete: "+getPackageName()+"\n"
             +"Último cierre: "+crashInfo+"\n"
             +"Prueba configurada: "+stageLabel(getSharedPreferences("MainActivity",MODE_PRIVATE)
                 .getInt("probe_stage",2))
-            +"\n\n--- REGISTRO DEL PROCESO HBBTV ---\n"+readFlightRecord()
+            +"\n\n--- PRUEBA NATIVA AISLADA, TDT EN OTRO PROCESO ---\n"+readIsolatedLog()
+            +"\n\n--- REGISTRO DEL PROCESO HBBTV LEGADO ---\n"+readFlightRecord()
             +"\n\n--- TRAZA NATIVA SI ANDROID LA PROPORCIONA ---\n"+dumpSystemExitTrace()
             +"\n\n--- REGISTRO DEL MONITOR ---\n"+launcherLog;
     }
     private void saveDiagnostics(){
-        String filename="O-LOVEStv-diagnostico-0.2.2-"
+        String filename="O-LOVEStv-diagnostico-0.2.3-"
             +new SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date())+".txt";
         Uri entry=null;
         try{

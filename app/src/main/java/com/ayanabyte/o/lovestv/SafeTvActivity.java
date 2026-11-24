@@ -323,6 +323,10 @@ public final class SafeTvActivity extends Activity {
     }
     @Override protected void onDestroy(){
         trace("CICLO TDT onDestroy");
+        if(serviceRequested)try{
+            stopService(new Intent(this,IsolatedNativeProbeService.class));
+            trace("Se solicitó cerrar el servicio aislado para siguiente prueba limpia");
+        }catch(Throwable error){trace("Error al detener servicio: "+error);}
         tv.setCallback(null);
         tv.reset();
         ui.removeCallbacksAndMessages(null);

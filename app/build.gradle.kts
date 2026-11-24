@@ -3,11 +3,11 @@ android {
     namespace = "com.ayanabyte.o.lovestv"
     compileSdk = 34
     defaultConfig {
-        applicationId = "com.ayanabyte.o.lovestv.lab13"
+        applicationId = "com.ayanabyte.o.lovestv.lab14"
         minSdk = 26
         targetSdk = 30
-        versionCode = 13
-        versionName = "0.2.2-test"
+        versionCode = 14
+        versionName = "0.2.3-test"
         ndk { abiFilters += "armeabi-v7a" }
     }
     externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }

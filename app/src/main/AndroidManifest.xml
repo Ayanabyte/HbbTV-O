@@ -9,7 +9,7 @@
         <package android:name="com.tcl.tvinput"/>
         <package android:name="com.tcl.android.webview"/>
     </queries>
-    <application android:label="O! LOVEStv Lab 0.2.2"
+    <application android:label="O! LOVEStv Lab 0.2.3"
         android:icon="@android:drawable/ic_media_play"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:use32bitAbi="true"
@@ -24,6 +24,13 @@
         <uses-native-library android:name="libcom_tcl_tbrowser_jni.tcl.so" android:required="false"/>
         <activity android:name=".MainActivity" android:exported="false"
             android:process="com.tcl.tv"
+            android:screenOrientation="landscape"/>
+        <service android:name=".IsolatedNativeProbeService"
+            android:enabled="true"
+            android:exported="false"
+            android:process="com.tcl.tv"/>
+        <activity android:name=".SafeTvActivity"
+            android:exported="false"
             android:screenOrientation="landscape"/>
         <activity android:name=".LauncherActivity" android:exported="true"
             android:screenOrientation="landscape">
