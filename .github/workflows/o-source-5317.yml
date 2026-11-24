@@ -1,0 +1,83 @@
+name: O! LOVEStv · fuente funcional 5.3.17
+
+on:
+  push:
+    branches: [experiment/source-5317]
+    paths:
+      - .github/workflows/o-source-5317.yml
+      - tools/build_o_source5317.py
+      - README-source-5317.md
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  source-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout fresh O! test harness
+        uses: actions/checkout@v4
+      - name: Checkout actual 5.3.17 source at immutable SHA
+        uses: actions/checkout@v4
+        with:
+          repository: Ayanabyte/Channelplus
+          ref: 7d5509396d5cd2eac917f913b91c5d74f3e78247
+          path: source5317
+          persist-credentials: false
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install required Android SDK
+        run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
+      - name: Gradle wrapper dependencies
+        uses: gradle/actions/setup-gradle@v4
+      - name: Install YAML parser for source workflow
+        run: python3 -m pip install --user PyYAML
+      - name: Apply original 5.3.17 source workflow steps
+        run: python3 tools/build_o_source5317.py
+      - name: Generate isolated test signing key
+        run: keytool -genkeypair -keystore "$RUNNER_TEMP/o-source-test.jks" -storepass android -keypass android -alias tunerprobe -keyalg RSA -validity 30 -dname 'CN=O Source LOVEStv Test'
+      - name: Compile actual source as independent O! app
+        working-directory: source5317/owntv_tdt
+        env:
+          CHANNELPLUS_TEST_KEYSTORE: ${{ runner.temp }}/o-source-test.jks
+          VERSION_CODE: '200001'
+          VERSION_NAME: '0.0.1-source5317'
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleHbbtv32Debug --no-daemon --stacktrace --max-workers=2 -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" -Pkotlin.daemon.jvmargs=-Xmx3g
+      - name: Prepare standalone APK
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          matches=list(Path("source5317/owntv_tdt/app/build/outputs/apk/hbbtv32/debug").glob("*.apk"))
+          if len(matches)!=1: raise SystemExit(f"Expected one source-built APK, got {matches}")
+          target=Path("O-LOVEStv-Fuente-5.3.17-test.apk")
+          target.write_bytes(matches[0].read_bytes())
+          print(f"APK created: {target}: {target.stat().st_size} bytes")
+          PY
+      - name: Upload independent test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: O-LOVEStv-Fuente-5317
+          path: O-LOVEStv-Fuente-5.3.17-test.apk
+          if-no-files-found: error
+      - name: Publish direct downloadable APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="o-source-5317-v0.0.1"
+          FILE="O-LOVEStv-Fuente-5.3.17-test.apk"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" --title "O! LOVEStv · compilación desde fuente 5.3.17" --notes "APK independiente reconstruida desde el código fuente funcional 5.3.17 aportado por el usuario. No reutiliza las pruebas O! 0.2.x; sin validación en TV real."
+          fi
