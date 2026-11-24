@@ -1,0 +1,86 @@
+name: O! LOVEStv · prueba mínima fuente 5.3.17
+on:
+  push:
+    branches: [experiment/minimal-5317]
+    paths:
+      - "minimal/**"
+      - ".github/workflows/minimal-5317.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-minimal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout minimal app code
+        uses: actions/checkout@v4
+      - name: Checkout pinned 5.3.17 HbbTV source (reference only)
+        uses: actions/checkout@v4
+        with:
+          repository: Ayanabyte/Channelplus
+          ref: 7d5509396d5cd2eac917f913b91c5d74f3e78247
+          path: source5317
+          persist-credentials: false
+      - name: Checkout O! verified firmware adapters (reference only)
+        uses: actions/checkout@v4
+        with:
+          repository: Ayanabyte/HbbTV-O
+          ref: f2d16b053efb889fe4e44ff9909b9ee8adc51bf1
+          path: labassets
+          persist-credentials: false
+      - name: Use Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.2.1"
+      - name: Extract only five original HbbTV classes
+        run: python3 minimal/tools/make_minimal_5317.py source5317 labassets
+      - name: Restore only two verified O! ARM32 bridges
+        run: |
+          python3 labassets/tools/restore_native.py
+          mkdir -p minimal/app/src/main/jniLibs/armeabi-v7a
+          cp labassets/app/src/main/jniLibs/armeabi-v7a/libosection.so minimal/app/src/main/jniLibs/armeabi-v7a/
+          cp labassets/app/src/main/jniLibs/armeabi-v7a/liboua.so minimal/app/src/main/jniLibs/armeabi-v7a/
+      - name: Verify minimal scope and clean code
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path("minimal/app/src/main/java/com/ayanabyte/o/lovestv/minimal")
+          files=sorted(src.glob("*.java"))
+          print("Only these Java files are in the minimal app:")
+          for f in files:print(" -",f.name)
+          assert len(files)==12, f"Expected exactly 12 Java files, found {len(files)}"
+          for f in files:
+              text=f.read_text()
+              for legacy in ("tv.own.", "channelplus", "stayon", "owntv"):
+                  assert legacy not in text.lower(), f"{legacy} in {f.name}"
+          assert not any(Path("minimal").rglob("lovestv-runtime.jar"))
+          print("PASS: no full app, no old UI library, no legacy package identifiers")
+          PY
+      - name: Compile minimal APK only
+        run: gradle -p minimal --no-daemon :app:assembleDebug
+      - name: Publish APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp minimal/app/build/outputs/apk/debug/app-debug.apk O-LOVEStv-Minimo-5317-v0.0.1.apk
+          TAG="o-minimal-5317-v0.0.1"
+          FILE="O-LOVEStv-Minimo-5317-v0.0.1.apk"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" \
+              --prerelease --target "$GITHUB_SHA" \
+              --title "O! LOVEStv — prueba mínima, fuente 5.3.17" \
+              --notes "App mínima: una TDT, 5 clases HbbTV Messenger del código fuente 5.3.17, 3 adaptadores TCL O!, monitor de diagnóstico. No es el clon completo."
+          fi
+      - name: Upload minimal APK to Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: O-LOVEStv-Minimo-APK
+          path: O-LOVEStv-Minimo-5317-v0.0.1.apk
