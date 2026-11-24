@@ -54,13 +54,13 @@ public final class LauncherActivity extends Activity {
         root.setGravity(Gravity.TOP);
         root.setBackgroundColor(Color.BLACK);
         TextView title=new TextView(this);
-        title.setText("O! · LOVEStv Lab 0.2.3");
+        title.setText("O! · LOVEStv Lab 0.2.4");
         title.setTextColor(Color.WHITE);
         title.setTextSize(28);
         root.addView(title);
         TextView subtitle=new TextView(this);
-        subtitle.setText("Comparativa TVSDK / HbbTV sin navegador.\n"+
-            "Cada prueba se ejecuta aislada. La pantalla de diagnóstico se conserva.");
+        subtitle.setText("Comparativa de HbbTV con la secuencia del código funcional.\n"+
+            "La pantalla de diagnóstico permanece en un proceso independiente.");
         subtitle.setTextColor(0xFFBBBBBB);
         subtitle.setTextSize(17);
         subtitle.setPadding(0,12,0,24);
@@ -68,6 +68,7 @@ public final class LauncherActivity extends Activity {
         Button recommended=actionButton("1 · TDT protegida + getInstance aislado",()->launchSafe(1));
         root.addView(recommended);
         root.addView(actionButton("2 · TDT protegida + HbbtvServer.init aislado",()->launchSafe(2)));
+        root.addView(actionButton("3 · Arranque HbbTV completo (arquitectura TV funcional)",this::launchNativeBroadcast));
         root.addView(actionButton("3 · Laboratorio antiguo: getInstance",()->launch(1)));
         root.addView(actionButton("4 · Laboratorio antiguo: init sin eventos",()->launch(2)));
         root.addView(actionButton("5 · Laboratorio antiguo: Tbrowser solo",()->launch(0)));
@@ -104,6 +105,16 @@ public final class LauncherActivity extends Activity {
             case 2:return "HbbtvServer.init sin eventos";
             case 3:return "HbbtvServer.init con eventos";
             default:return "desconocida";
+        }
+    }
+    private void launchNativeBroadcast(){
+        log("Iniciando ensayo integral de HbbTV con Activity TDT 32-bit");
+        labWasStarted=true;
+        try{
+            startActivity(new Intent(this,NativeBroadcastActivity.class));
+        }catch(Throwable e){
+            log("No se pudo iniciar el ensayo integral: "+e);
+            showStatus("Error al abrir ensayo HbbTV: "+e.getMessage());
         }
     }
     private void launchSafe(int stage){
@@ -226,7 +237,7 @@ public final class LauncherActivity extends Activity {
         }catch(Throwable error){return "Error leyendo traza: "+error.getMessage();}
     }
     private String diagnostic(){
-        return "O! LOVEStv Lab 0.2.3 · monitor seguro\n"
+        return "O! LOVEStv Lab 0.2.4 · monitor seguro\n"
             +"Paquete: "+getPackageName()+"\n"
             +"Último cierre: "+crashInfo+"\n"
             +"Prueba configurada: "+stageLabel(getSharedPreferences("MainActivity",MODE_PRIVATE)
@@ -237,7 +248,7 @@ public final class LauncherActivity extends Activity {
             +"\n\n--- REGISTRO DEL MONITOR ---\n"+launcherLog;
     }
     private void saveDiagnostics(){
-        String filename="O-LOVEStv-diagnostico-0.2.3-"
+        String filename="O-LOVEStv-diagnostico-0.2.4-"
             +new SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date())+".txt";
         Uri entry=null;
         try{

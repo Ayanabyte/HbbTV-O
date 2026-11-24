@@ -9,7 +9,7 @@
         <package android:name="com.tcl.tvinput"/>
         <package android:name="com.tcl.android.webview"/>
     </queries>
-    <application android:label="O! LOVEStv Lab 0.2.3"
+    <application android:label="O! LOVEStv Lab 0.2.4"
         android:icon="@android:drawable/ic_media_play"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:use32bitAbi="true"
@@ -22,6 +22,10 @@
         <uses-native-library android:name="libsitatv.so" android:required="false"/>
         <uses-native-library android:name="libcom_tcl_hbbtv_jni.tcl.so" android:required="false"/>
         <uses-native-library android:name="libcom_tcl_tbrowser_jni.tcl.so" android:required="false"/>
+        <activity android:name=".NativeBroadcastActivity"
+            android:exported="false"
+            android:process="com.tcl.tv"
+            android:screenOrientation="landscape"/>
         <activity android:name=".MainActivity" android:exported="false"
             android:process="com.tcl.tv"
             android:screenOrientation="landscape"/>
