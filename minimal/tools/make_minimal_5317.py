@@ -40,35 +40,35 @@ with zipfile.ZipFile(io.BytesIO(data)) as z:
         s=s.replace("ChannelPlusBrowserListener","OMinimalBrowserListener")
         if name=="HbbTvRuntimeService.java":
             s=patch(s,"ExperimentalAuthorization.begin(this,authorized->main.post(()->{",
-                'TclTvSdkRegistration.begin(this,this::record,(authorized,status)->main.post(()->{\\n            record("TVSDK: "+status);',
+                'TclTvSdkRegistration.begin(this,this::record,(authorized,status)->main.post(()->{\n            record("TVSDK: "+status);',
                 "authorization adapter")
             s=patch(s,"VendorBrowserAccess.prepare(windowContext);",
                 "VendorWebkitAccess.prepare(windowContext,this::record);","vendor browser")
             s=patch(s,"NativeSection.prepareCertificates(windowContext); NativeUA.prepare(windowContext);",
                 "NativeBridgePreparation.prepare(windowContext,this::record);","native pre-init")
             s=patch(s,'            if(ready) initialize();',
-                '            record("SurfaceControlViewHost adjunto; video="+ready);\\n            if(ready) initialize();',
+                '            record("SurfaceControlViewHost adjunto; video="+ready);\n            if(ready) initialize();',
                 "surface")
-            s=patch(s,'        initializing=true;\\n        main.removeCallbacks(timeout);',
-                '        initializing=true;\\n        record("FASE: comenzar TVSDK");\\n        main.removeCallbacks(timeout);',
+            s=patch(s,'        initializing=true;\n        main.removeCallbacks(timeout);',
+                '        initializing=true;\n        record("FASE: comenzar TVSDK");\n        main.removeCallbacks(timeout);',
                 "initialization")
             s=patch(s,'                engine=singleton("com.tcl.hbbtv.HbbtvServer");',
-                '                record("FASE: getInstance HbbtvServer");\\n                engine=singleton("com.tcl.hbbtv.HbbtvServer");',
+                '                record("FASE: getInstance HbbtvServer");\n                engine=singleton("com.tcl.hbbtv.HbbtvServer");',
                 "getInstance")
             s=patch(s,'                Object initialized=call(engine,"init");',
-                '                record("FASE: HbbtvServer.init");\\n                Object initialized=call(engine,"init");\\n                record("FASE: init returned="+initialized);',
+                '                record("FASE: HbbtvServer.init");\n                Object initialized=call(engine,"init");\n                record("FASE: init returned="+initialized);',
                 "init")
             s=patch(s,'                browser.getClass().getMethod("initTbrowser",Context.class,ViewGroup.class,boolean.class)',
-                '                record("FASE: Tbrowser.initTbrowser");\\n                browser.getClass().getMethod("initTbrowser",Context.class,ViewGroup.class,boolean.class)',
+                '                record("FASE: Tbrowser.initTbrowser");\n                browser.getClass().getMethod("initTbrowser",Context.class,ViewGroup.class,boolean.class)',
                 "initTbrowser")
-            s=patch(s,'        browserPrepared=true;\\n        if(!ready) return;',
-                '        browserPrepared=true;\\n        record("FASE: callback navegador listo");\\n        if(!ready) return;',
+            s=patch(s,'        browserPrepared=true;\n        if(!ready) return;',
+                '        browserPrepared=true;\n        record("FASE: callback navegador listo");\n        if(!ready) return;',
                 "browser callback")
             s=patch(s,'            Object result=call(engine,"start");',
-                '            record("FASE: HbbtvServer.start");\\n            Object result=call(engine,"start");\\n            record("FASE: start returned="+result);',
+                '            record("FASE: HbbtvServer.start");\n            Object result=call(engine,"start");\n            record("FASE: start returned="+result);',
                 "start")
             s=patch(s,'        Log.e(TAG,reason,error); reply(FAILED,new Bundle()); cleanup();',
-                '        record("FALLO CONTROLADO: "+reason+(error==null?"":" "+error));\\n        Log.e(TAG,reason,error); reply(FAILED,new Bundle()); cleanup();',
+                '        record("FALLO CONTROLADO: "+reason+(error==null?"":" "+error));\n        Log.e(TAG,reason,error); reply(FAILED,new Bundle()); cleanup();',
                 "error journal")
             s=patch(s,'    @Override public void onCreate() { super.onCreate(); liveServices++; }',
                 '''    @Override public void onCreate() { super.onCreate(); liveServices++; record("Motor TCL iniciado PID="+Process.myPid()); }
