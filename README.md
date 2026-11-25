@@ -1,4 +1,4 @@
-# O! TDT Lab 0.1.0
+# O! TDT Lab 0.1.1
 Prueba independiente para la entrada TDT de los TCL Android TV 11 de 32 bits o con soporte ARM de 32 bits. Selecciona Antena 3, espera la imagen y pulsa azul. Menú vuelve al selector. Comprueba si puedes navegar por LOVEStv, volver al directo y abrirlo una segunda vez. El diagnóstico se puede guardar en Descargas desde la pantalla inicial.
 
 Si la lista está restringida, «Probar último canal» usa el último ID con vídeo o, en el primer arranque, 10032330, observado anteriormente en la TCL de prueba. El botón de ID manual permite usar otro canal de esa instalación sin volver a buscar canales.

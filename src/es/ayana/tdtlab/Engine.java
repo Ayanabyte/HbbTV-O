@@ -53,8 +53,12 @@ final class Engine {
             throw new IllegalStateException("El motor rechazó la operación ("+value+")");
     }
     static String cause(Throwable e) {
-        while(e.getCause()!=null && e!=e.getCause()) e=e.getCause();
-        return e.toString();
+        StringBuilder chain=new StringBuilder(e.toString());
+        while(e.getCause()!=null && e!=e.getCause()){
+            e=e.getCause();
+            chain.append("\n").append(e.toString());
+        }
+        return chain.toString();
     }
     void ready() {
         if(closed || running) return;
