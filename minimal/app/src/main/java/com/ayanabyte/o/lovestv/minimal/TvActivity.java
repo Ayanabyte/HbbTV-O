@@ -17,6 +17,8 @@ import java.util.List;
 public final class TvActivity extends Activity {
     private final Handler main=new Handler(Looper.getMainLooper());
     private HbbTvPlayerView player;
+    private TvView plainTv;
+    private boolean tdtOnly;
     private TextView label;
     private TvChannels.Channel selected;
     private long generation;
@@ -24,22 +26,33 @@ public final class TvActivity extends Activity {
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
+        tdtOnly=getIntent().getBooleanExtra("tdt_only",false);
         FrameLayout screen=new FrameLayout(this);
-        player=new HbbTvPlayerView(this);
-        screen.addView(player,new FrameLayout.LayoutParams(-1,-1));
+        if(tdtOnly){
+            plainTv=new TvView(this);
+            screen.addView(plainTv,new FrameLayout.LayoutParams(-1,-1));
+        }else{
+            player=new HbbTvPlayerView(this);
+            screen.addView(player,new FrameLayout.LayoutParams(-1,-1));
+        }
         label=new TextView(this);label.setTextColor(-1);label.setBackgroundColor(0xbe151515);
         label.setPadding(16,10,16,10);label.setTextSize(15);
         FrameLayout.LayoutParams p=new FrameLayout.LayoutParams(-1,-2);
         p.gravity=android.view.Gravity.BOTTOM;
         screen.addView(label,p);setContentView(screen);
-        label.setText("O! · Antena 3 · HbbTV se inicia automáticamente · INFO = diagnóstico");
-        Journal.log(this,"TDT Activity PID="+android.os.Process.myPid()+" process="+android.app.Application.getProcessName());
-        player.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{
+        label.setText(tdtOnly
+            ?"O! · SOLO TDT, SIN HbbTV · Esperando imagen · INFO diagnóstico"
+            :"O! · Antena 3 + HbbTV · Esperando imagen · INFO diagnóstico");
+        Journal.log(this,"=== O! v0.0.2 NUEVA SESIÓN PID="+android.os.Process.myPid()
+            +" proceso="+android.app.Application.getProcessName()
+            +" modo="+(tdtOnly?"SOLO TDT":"TDT + HbbTV")+" ===");
+        if(player!=null)player.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{
             if(selected!=null&&r>l&&b>t)sync();
         });
     }
     @Override protected void onStart(){
         super.onStart();
+        Journal.log(this,"CICLO onStart modo="+(tdtOnly?"SOLO TDT":"HbbTV"));
         if(selected!=null||querying)return;
         if(checkSelfPermission("android.permission.READ_TV_LISTINGS")!=PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{"android.permission.READ_TV_LISTINGS"},30);
@@ -73,7 +86,10 @@ public final class TvActivity extends Activity {
         selected=ch;generation++;ready=false;
         final long epoch=generation;
         Journal.log(this,"TDT sintoniza="+ch.name+" input="+ch.input+" id="+ch.id);
-        player.getTvView().setCallback(new TvView.TvInputCallback(){
+        TvView view=tdtOnly?plainTv:player.getTvView();
+        Journal.log(this,"TDT: creando TvView callback, instancia="+view.getClass().getName()
+            +" modo="+(tdtOnly?"SOLO TDT":"HbbTV"));
+        view.setCallback(new TvView.TvInputCallback(){
             @Override public void onVideoAvailable(String input){
                 if(epoch!=generation)return;
                 ready=true;
@@ -89,33 +105,60 @@ public final class TvActivity extends Activity {
             }
         });
         try{
-            player.getTvView().tune(ch.input,TvContract.buildChannelUri(ch.id));
+            Journal.log(this,"TDT: antes de TvView.tune()");
+            view.tune(ch.input,TvContract.buildChannelUri(ch.id));
+            Journal.log(this,"TDT: TvView.tune() retornó");
             sync();
         }catch(Throwable e){label.setText("Error TDT: "+e);Journal.log(this,"TUNE ERROR "+e);}
     }
     private void sync(){
         if(selected==null)return;
-        player.updateHbbTv(selected.input,selected.id,ready,generation,true);
+        if(!tdtOnly){
+            // The source may bind the native browser while video=false.
+            // Preserve the original integration only in this explicit test.
+            player.updateHbbTv(selected.input,selected.id,ready,generation,true);
+        }
+        label.setVisibility(View.VISIBLE);
         if(ready){
-            label.setVisibility(View.VISIBLE);
-            label.setText("O! · "+selected.name+" · HbbTV automático · AZUL LOVEStv · INFO diagnóstico");
+            label.setText("O! · "+selected.name+" · "+(tdtOnly
+                ?"TDT ESTABLE (sin motor TCL)":"HbbTV automático · AZUL LOVEStv")
+                +" · INFO diagnóstico");
             main.postDelayed(()->{if(ready)label.setVisibility(View.INVISIBLE);},6000);
+        }else{
+            label.setText("O! · "+selected.name+" · "+(tdtOnly
+                ?"SOLO TDT: esperando vídeo disponible":"TDT+HbbTV: esperando vídeo")
+                +" · INFO diagnóstico");
         }
     }
     @Override public boolean dispatchKeyEvent(KeyEvent e){
-        if(HbbTvPlayerView.dispatch(this,e))return true;
+        if(!tdtOnly&&HbbTvPlayerView.dispatch(this,e))return true;
         if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0&&
            (e.getKeyCode()==KeyEvent.KEYCODE_INFO||e.getKeyCode()==KeyEvent.KEYCODE_MENU)){
             new AlertDialog.Builder(this).setTitle("O! · Diagnóstico")
-                .setMessage("Motor TCL ligado al único TvView.\nVídeo="+ready+"\nPulsa ATRÁS para volver al monitor y guardar el TXT.")
+                .setMessage("Modo="+(tdtOnly?"SOLO TDT sin HbbTV":"TDT + LOVEStv")
+                    +"\nVídeo confirmado="+ready
+                    +"\nPulsa ATRÁS para volver al monitor y guardar el TXT.")
                 .setPositiveButton("OK",null).show();
             return true;
         }
         return super.dispatchKeyEvent(e);
     }
+    @Override protected void onResume(){
+        super.onResume();
+        Journal.log(this,"CICLO onResume modo="+(tdtOnly?"SOLO TDT":"HbbTV"));
+    }
+    @Override protected void onPause(){
+        Journal.log(this,"CICLO onPause ready="+ready+" modo="+(tdtOnly?"SOLO TDT":"HbbTV"));
+        super.onPause();
+    }
+    @Override protected void onStop(){
+        Journal.log(this,"CICLO onStop ready="+ready+" modo="+(tdtOnly?"SOLO TDT":"HbbTV"));
+        super.onStop();
+    }
     @Override protected void onDestroy(){
-        Journal.log(this,"TDT Activity finalizada");
+        Journal.log(this,"TDT Activity finalizada ready="+ready+" modo="+(tdtOnly?"SOLO TDT":"HbbTV"));
         if(player!=null){player.release();player.getTvView().setCallback(null);player.getTvView().reset();}
+        if(plainTv!=null){plainTv.setCallback(null);plainTv.reset();}
         main.removeCallbacksAndMessages(null);
         super.onDestroy();
     }

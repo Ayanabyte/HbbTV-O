@@ -34,16 +34,22 @@ public final class LauncherActivity extends Activity {
         title.setText("O! · LOVEStv MÍNIMO");title.setTextSize(27);
         title.setTextColor(-1);root.addView(title);
         TextView about=new TextView(this);
-        about.setText("Una sola TDT, motor TCL de la fuente 5.3.17 y diagnóstico. Sin EPG, IPTV ni menús de la antigua app.");
+        about.setText("Diagnóstico diferencial: primero comprobar TDT sin HbbTV, después activar el motor TCL de la fuente 5.3.17.");
         about.setTextColor(0xffbbbbbb);about.setTextSize(16);about.setPadding(0,12,0,20);root.addView(about);
-        root.addView(button("ABRIR ANTENA 3 Y PROBAR LOVEStv",()->startActivity(new Intent(this,TvActivity.class))));
+        root.addView(button("1 · SOLO ANTENA 3 — SIN HbbTV",()->openTv(true)));
+        root.addView(button("2 · ANTENA 3 + LOVEStv 5.3.17",()->openTv(false)));
         root.addView(button("GUARDAR DIAGNÓSTICO .TXT",this::save));
         root.addView(button("VER REGISTRO DEL MOTOR",()->new AlertDialog.Builder(this)
             .setTitle("Diagnóstico TCL").setMessage(diagnostic().substring(0,Math.min(10000,diagnostic().length())))
             .setPositiveButton("GUARDAR",(d,i)->save()).setNegativeButton("CERRAR",null).show()));
         status=new TextView(this);status.setTextColor(-1);status.setPadding(0,20,0,0);
-        status.setText("Si la TV se cierra, vuelve aquí y guarda el TXT.");root.addView(status);
+        status.setText("Primero abre SOLO TDT y espera 15 s. Si funciona, compara con TDT + LOVEStv. Guarda el TXT en ambos casos.");root.addView(status);
         setContentView(root);
+    }
+    private void openTv(boolean tdtOnly){
+        Intent intent=new Intent(this,TvActivity.class);
+        intent.putExtra("tdt_only",tdtOnly);
+        startActivity(intent);
     }
     private Button button(String label,Runnable action){
         Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setOnClickListener(v->action.run());return b;
@@ -65,13 +71,16 @@ public final class LauncherActivity extends Activity {
             if(records!=null)for(ApplicationExitInfo item:records)
                 if("com.tcl.tv".equals(item.getProcessName()))
                     return "PID="+item.getPid()+" motivo="+item.getReason()+
-                        " status="+item.getStatus()+" fecha="+new Date(item.getTimestamp())+
+                        " status="+item.getStatus()+
+                        (item.getReason()==ApplicationExitInfo.REASON_SIGNALED
+                            ?" (SIGNAL: "+(item.getStatus()==9?"SIGKILL":item.getStatus()==11?"SIGSEGV":"otra")+")":"")
+                        +" fecha="+new Date(item.getTimestamp())+
                         " descripcion="+item.getDescription();
             return "(ninguna salida registrada)";
         }catch(Throwable e){return "No hay detalles de salida: "+e;}
     }
     private String diagnostic(){
-        return "O! LOVEStv MÍNIMO · fuente 5.3.17\n"+
+        return "O! LOVEStv MÍNIMO v0.0.2 · fuente 5.3.17\n"+
             "Paquete="+getPackageName()+"\nUltima salida TCL="+exits()+
             "\n--- HBBTV ---\n"+read("o-minimal-hbbtv-runtime.log")+
             "\n--- TDT ---\n"+read("o-minimal-tdt.log");
