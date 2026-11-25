@@ -28,6 +28,14 @@ final class Engine {
             Object result=call(server,"init");
             host.note("init = "+result);
             check(result);
+            try {
+                android.content.pm.PackageInfo provider=host.getPackageManager()
+                    .getPackageInfo("com.tcl.android.webview",0);
+                host.note("WebView TCL visible: versión="+provider.versionName+
+                    " habilitado="+provider.applicationInfo.enabled);
+            } catch(android.content.pm.PackageManager.NameNotFoundException e) {
+                host.note("WebView TCL: el gestor de paquetes no encuentra com.tcl.android.webview");
+            }
             browser=instance("com.tcl.tbrowser.Tbrowser");
             Class<?> iface=Class.forName("com.tcl.tbrowser.TbrowserInitEventListener");
             listener=Proxy.newProxyInstance(iface.getClassLoader(),new Class<?>[]{iface},(p,m,a)->{
