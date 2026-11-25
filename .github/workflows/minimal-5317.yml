@@ -40,12 +40,6 @@ jobs:
           gradle-version: "8.2.1"
       - name: Extract only five original HbbTV classes
         run: python3 minimal/tools/make_minimal_5317.py source5317 labassets
-      - name: Inspect startup in extracted 5.3.17 integration
-        run: |
-          echo '### HbbTvPlayerView.java ###'
-          nl -ba minimal/app/src/main/java/com/ayanabyte/o/lovestv/minimal/HbbTvPlayerView.java | head -n 320
-          echo '### RuntimeService start and binding methods ###'
-          grep -nE 'onBind|onCreate|initialize|register|attach|onStartCommand|ready|SURFACE|input|session|message|Messenger' minimal/app/src/main/java/com/ayanabyte/o/lovestv/minimal/HbbTvRuntimeService.java | head -n 135
       - name: Restore only two verified O! ARM32 bridges
         run: |
           python3 labassets/tools/restore_native.py
@@ -78,15 +72,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp minimal/app/build/outputs/apk/debug/app-debug.apk O-LOVEStv-Minimo-5317-v0.0.2.apk
-          TAG="o-minimal-5317-v0.0.2"
-          FILE="O-LOVEStv-Minimo-5317-v0.0.2.apk"
+          cp minimal/app/build/outputs/apk/debug/app-debug.apk O-LOVEStv-Minimo-5317-v0.0.3.apk
+          TAG="o-minimal-5317-v0.0.3"
+          FILE="O-LOVEStv-Minimo-5317-v0.0.3.apk"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$FILE" O-LOVEStv-Minimo-5317-fuentes.zip --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" \
               --prerelease --target "$GITHUB_SHA" \
-              --title "O! LOVEStv — prueba mínima 0.0.2, TDT vs HbbTV fuente 5.3.17" \
+              --title "O! LOVEStv — prueba mínima 0.0.3, esperar video antes de HbbTV" \
               --notes "App mínima: una TDT, 5 clases HbbTV Messenger del código fuente 5.3.17, 3 adaptadores TCL O!, monitor de diagnóstico. No es el clon completo."
             gh release upload "$TAG" O-LOVEStv-Minimo-5317-fuentes.zip --repo "$GITHUB_REPOSITORY" --clobber
           fi
@@ -94,4 +88,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: O-LOVEStv-Minimo-APK
-          path: O-LOVEStv-Minimo-5317-v0.0.2.apk
+          path: O-LOVEStv-Minimo-5317-v0.0.3.apk

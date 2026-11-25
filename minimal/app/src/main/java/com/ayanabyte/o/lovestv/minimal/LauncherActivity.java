@@ -80,7 +80,7 @@ public final class LauncherActivity extends Activity {
         }catch(Throwable e){return "No hay detalles de salida: "+e;}
     }
     private String diagnostic(){
-        return "O! LOVEStv MÍNIMO v0.0.2 · fuente 5.3.17\n"+
+        return "O! LOVEStv MÍNIMO v0.0.3 · fuente 5.3.17\n"+
             "Paquete="+getPackageName()+"\nUltima salida TCL="+exits()+
             "\n--- HBBTV ---\n"+read("o-minimal-hbbtv-runtime.log")+
             "\n--- TDT ---\n"+read("o-minimal-tdt.log");

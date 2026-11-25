@@ -43,7 +43,7 @@ public final class TvActivity extends Activity {
         label.setText(tdtOnly
             ?"O! · SOLO TDT, SIN HbbTV · Esperando imagen · INFO diagnóstico"
             :"O! · Antena 3 + HbbTV · Esperando imagen · INFO diagnóstico");
-        Journal.log(this,"=== O! v0.0.2 NUEVA SESIÓN PID="+android.os.Process.myPid()
+        Journal.log(this,"=== O! v0.0.3 NUEVA SESIÓN PID="+android.os.Process.myPid()
             +" proceso="+android.app.Application.getProcessName()
             +" modo="+(tdtOnly?"SOLO TDT":"TDT + HbbTV")+" ===");
         if(player!=null)player.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{
@@ -93,7 +93,7 @@ public final class TvActivity extends Activity {
             @Override public void onVideoAvailable(String input){
                 if(epoch!=generation)return;
                 ready=true;
-                Journal.log(TvActivity.this,"VIDEO DISPONIBLE, inicio HbbTV sin botón");
+                Journal.log(TvActivity.this,"VIDEO DISPONIBLE modo="+(tdtOnly?"SOLO TDT":"TDT+HbbTV")+"; habilitando motor solo ahora");
                 sync();
             }
             @Override public void onVideoUnavailable(String input,int why){

@@ -38,6 +38,26 @@ with zipfile.ZipFile(io.BytesIO(data)) as z:
         s=s.replace('"tv.own.channelplus.lovestvprobe.HbbTvRuntimeService"',f'"{PACKAGE}.HbbTvRuntimeService"')
         s=s.replace("ChannelplusHbb","OMinimalHbb").replace("Channel+","O!")
         s=s.replace("ChannelPlusBrowserListener","OMinimalBrowserListener")
+        if name=="HbbTvPlayerView.java":
+            # In 0.0.2 the service and SurfaceControlViewHost were created
+            # before TvView.onVideoAvailable; Android then killed the process
+            # (SIGKILL, status 9). Defer BOTH until real video is confirmed.
+            # Original Messenger, ActivityHost, and ViewHost remain unchanged.
+            s=patch(s,'        if(overlay!=null && !failed) overlay.setVisibility(View.VISIBLE);',
+                '        if(overlay!=null && !failed) overlay.setVisibility(ready ? View.VISIBLE : View.INVISIBLE);',
+                "overlay visibility gated on tuner video")
+            s=patch(s,
+                '        if(released || failed || !enabled || !surfaceReady || overlay==null || getWidth()==0 || getHeight()==0) return;',
+                '        if(released || failed || !enabled || !ready || !surfaceReady || overlay==null || getWidth()==0 || getHeight()==0) return;',
+                "service bind gated on video readiness")
+            s=patch(s,'        input=inputId; channelId=id; generation=tuneGeneration; ready=videoReady;',
+                '        input=inputId; channelId=id; generation=tuneGeneration; ready=videoReady;\n'
+                '        if(activity!=null) Journal.log(activity,"HBBTV: update channel="+id+" videoReady="+ready+" surface="+surfaceReady+" attached="+attached);',
+                "record HbbTV readiness")
+            s=patch(s,'        session=serial.incrementAndGet();',
+                '        if(activity!=null) Journal.log(activity,"HBBTV: enlazando servicio solo TRAS video=true, channel="+channelId);\n'
+                '        session=serial.incrementAndGet();',
+                "log delayed service binding")
         if name=="HbbTvRuntimeService.java":
             s=patch(s,"ExperimentalAuthorization.begin(this,authorized->main.post(()->{",
                 'TclTvSdkRegistration.begin(this,this::record,(authorized,status)->main.post(()->{\n            record("TVSDK: "+status);',
