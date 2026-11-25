@@ -4,7 +4,7 @@
   <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
   <uses-permission android:name="android.permission.READ_TV_LISTINGS"/>
   <uses-permission android:name="android.permission.INTERNET"/>
-  <application android:label="O! TDT Lab" android:icon="@android:drawable/ic_media_play" android:banner="@android:drawable/ic_media_play" android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
+  <application android:label="O! TDT Lab" android:icon="@drawable/lab" android:banner="@drawable/lab" android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
     <uses-library android:name="com.tcl.hbbtv.HbbtvServer" android:required="false"/>
     <uses-library android:name="com.tcl.tbrowser" android:required="false"/>
     <uses-library android:name="com.tcl.tvmanager" android:required="false"/>
