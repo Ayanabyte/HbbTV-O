@@ -23,6 +23,13 @@ final class Engine {
     void start() {
         try {
             host.note("HbbTV: inicio en proceso de "+(android.os.Process.is64Bit()?"64":"32")+" bits");
+            try {
+                Class<?> view=Class.forName("tcl.webkit.WebView",false,host.getClassLoader());
+                view.getConstructor(Context.class);
+                host.note("tcl.webkit.WebView(Context) disponible");
+            } catch(ReflectiveOperationException | LinkageError | SecurityException e) {
+                host.note("Constructor WebView TCL no disponible: "+cause(e));
+            }
             server=instance("com.tcl.hbbtv.HbbtvServer");
             host.note("HbbtvServer.init");
             Object result=call(server,"init");
