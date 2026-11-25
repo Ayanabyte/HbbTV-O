@@ -125,33 +125,33 @@ for name in ["TclTvSdkRegistration.java","VendorWebkitAccess.java","NativeBridge
         # Mark both entry and exit of all steps in the exact authorization
         # path to locate the SIGKILL seen before systemAuthorized was logged.
         src=patch(src,'                ApplicationInfo vendor=app.getPackageManager().getApplicationInfo(VENDOR_PACKAGE,0);',
-            '                log.accept("TVSDK ETAPA 1: antes de PackageManager.getApplicationInfo");\\n'
-            '                ApplicationInfo vendor=app.getPackageManager().getApplicationInfo(VENDOR_PACKAGE,0);\\n'
+            '                log.accept("TVSDK ETAPA 1: antes de PackageManager.getApplicationInfo");\n'
+            '                ApplicationInfo vendor=app.getPackageManager().getApplicationInfo(VENDOR_PACKAGE,0);\n'
             '                log.accept("TVSDK ETAPA 1: getApplicationInfo finalizó");',
             "vendor APK lookup")
         src=patch(src,'                String installedHash=sha256File(installed);',
-            '                log.accept("TVSDK ETAPA 2: antes de leer SHA-256 del APK TCL, tamaño="+installed.length());\\n'
-            '                String installedHash=sha256File(installed);\\n'
+            '                log.accept("TVSDK ETAPA 2: antes de leer SHA-256 del APK TCL, tamaño="+installed.length());\n'
+            '                String installedHash=sha256File(installed);\n'
             '                log.accept("TVSDK ETAPA 2: SHA-256 calculado");',
             "APK checksum")
         src=patch(src,'                String authorization=readVerifiedAuthorization(installed);',
-            '                log.accept("TVSDK ETAPA 3: antes de leer autorización del APK TCL");\\n'
-            '                String authorization=readVerifiedAuthorization(installed);\\n'
+            '                log.accept("TVSDK ETAPA 3: antes de leer autorización del APK TCL");\n'
+            '                String authorization=readVerifiedAuthorization(installed);\n'
             '                log.accept("TVSDK ETAPA 3: lectura completada (valor oculto)");',
             "authorization read")
         src=patch(src,'                Class<?> managerClass=Class.forName("com.tcl.tvmanager.TTvFunctionManager",true,app.getClassLoader());',
-            '                log.accept("TVSDK ETAPA 4: antes de cargar TTvFunctionManager");\\n'
-            '                Class<?> managerClass=Class.forName("com.tcl.tvmanager.TTvFunctionManager",true,app.getClassLoader());\\n'
+            '                log.accept("TVSDK ETAPA 4: antes de cargar TTvFunctionManager");\n'
+            '                Class<?> managerClass=Class.forName("com.tcl.tvmanager.TTvFunctionManager",true,app.getClassLoader());\n'
             '                log.accept("TVSDK ETAPA 4: clase cargada");',
             "manager loading")
         src=patch(src,'                Object manager=managerClass.getMethod("getInstance",Context.class).invoke(null,context);',
-            '                log.accept("TVSDK ETAPA 5: antes de TTvFunctionManager.getInstance");\\n'
-            '                Object manager=managerClass.getMethod("getInstance",Context.class).invoke(null,context);\\n'
+            '                log.accept("TVSDK ETAPA 5: antes de TTvFunctionManager.getInstance");\n'
+            '                Object manager=managerClass.getMethod("getInstance",Context.class).invoke(null,context);\n'
             '                log.accept("TVSDK ETAPA 5: instancia obtenida");',
             "manager getInstance")
         src=patch(src,'                Object response=authorize.invoke(manager,authorization);',
-            '                log.accept("TVSDK ETAPA 6: antes de systemAuthorized");\\n'
-            '                Object response=authorize.invoke(manager,authorization);\\n'
+            '                log.accept("TVSDK ETAPA 6: antes de systemAuthorized");\n'
+            '                Object response=authorize.invoke(manager,authorization);\n'
             '                log.accept("TVSDK ETAPA 6: systemAuthorized retornó");',
             "authorization call")
     (OUT/name).write_text(src,encoding="utf8")
