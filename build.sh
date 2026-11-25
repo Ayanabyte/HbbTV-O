@@ -21,8 +21,8 @@ ks=${LAB_KEYSTORE:-"$out/debug.jks"}
 if [[ ! -f "$ks" ]]; then
   keytool -genkeypair -keystore "$ks" -storepass android -keypass android -alias lab -keyalg RSA -keysize 2048 -validity 3650 -dname "CN=TDT Lab" >/dev/null
 fi
-"$bt/apksigner" sign --ks "$ks" --ks-pass pass:android --out O-TDT-Lab-0.1.4.apk "$out/aligned.apk"
-"$bt/apksigner" verify --verbose O-TDT-Lab-0.1.4.apk
-"$bt/aapt" dump badging O-TDT-Lab-0.1.4.apk | head -80
-"$bt/aapt" dump permissions O-TDT-Lab-0.1.4.apk | grep -F "android.permission.ACCESS_NETWORK_STATE"
-"$bt/aapt" dump badging O-TDT-Lab-0.1.4.apk | grep -Fx "uses-library-not-required:'tcl.webkit'"
+"$bt/apksigner" sign --ks "$ks" --ks-pass pass:android --out O-TDT-Lab-0.1.5.apk "$out/aligned.apk"
+"$bt/apksigner" verify --verbose O-TDT-Lab-0.1.5.apk
+"$bt/aapt" dump badging O-TDT-Lab-0.1.5.apk | head -80
+"$bt/aapt" dump permissions O-TDT-Lab-0.1.5.apk | grep -F "android.permission.ACCESS_NETWORK_STATE"
+"$bt/aapt" dump badging O-TDT-Lab-0.1.5.apk | grep -Fx "uses-library-not-required:'tcl.webkit'"

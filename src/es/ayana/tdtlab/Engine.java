@@ -13,7 +13,7 @@ final class Engine {
     Object server, browser, listener;
     private static Object registeredNotifier;
     private static java.lang.ref.WeakReference<Engine> current=new java.lang.ref.WeakReference<>(null);
-    boolean closed, running;
+    boolean closed, running, triedRetune;
 
     void subscribeToBroadcast() {
         current=new java.lang.ref.WeakReference<>(this);
@@ -155,7 +155,15 @@ final class Engine {
             boolean handled=Boolean.TRUE.equals(server.getClass().getMethod("handleKey",int.class,int.class).invoke(server,key,0));
             host.note("Tecla "+name+" Android="+code+" TCL="+key+" aceptada="+handled);
             if(code==KeyEvent.KEYCODE_PROG_BLUE){
-                try {host.note("Estado HbbTV: "+call(server,"getState"));}
+                try {
+                    String state=String.valueOf(call(server,"getState"));
+                    host.note("Estado HbbTV: "+state);
+                    if(!handled && !triedRetune && "EN_TCL_HBBTV_NO_EXIST".equals(state)) {
+                        triedRetune=true;
+                        host.retuneWhileRunning(this);
+                        return true;
+                    }
+                }
                 catch(Exception | LinkageError e){host.note("Consulta de estado: "+cause(e));}
             }
             return handled;

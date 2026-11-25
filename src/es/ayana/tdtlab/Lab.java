@@ -141,6 +141,29 @@ public final class Lab extends Activity {
         }
         return super.dispatchKeyEvent(e);
     }
+    void retuneWhileRunning(Engine session) {
+        TvView current=tv;
+        if(!active || current==null || engine!=session)return;
+        try {
+            status("Resintonizando el mismo canal con HbbTV activo…");
+            video=false;
+            current.reset();
+        } catch(RuntimeException e){status("Error al liberar el sintonizador: "+Engine.cause(e));return;}
+        session.ui.postDelayed(()->{
+            if(!active || tv!=current || engine!=session || session.closed)return;
+            try {
+                note("Nueva sesión TDT con el mismo motor HbbTV, canal "+channel);
+                current.tune(input,TvContract.buildChannelUri(channel));
+                current.setStreamVolume(1f);
+                session.ui.postDelayed(()->{
+                    if(engine!=session || session.closed)return;
+                    try {status("Tras resintonizar: "+Engine.call(session.server,"getState"));}
+                    catch(Exception | LinkageError e){note(Engine.cause(e));}
+                },5000);
+            } catch(RuntimeException e){status("Error al resintonizar: "+Engine.cause(e));}
+        },750);
+    }
+
     void stopSession(){
         active=false;video=false;
         if(engine!=null){engine.close();engine=null;}
