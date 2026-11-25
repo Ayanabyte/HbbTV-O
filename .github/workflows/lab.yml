@@ -4,7 +4,7 @@ on:
     branches: [lab-tdt-5314]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -14,9 +14,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: android-actions/setup-android@v3
       - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - run: bash build.sh
       - uses: actions/upload-artifact@v4
         with:
           name: O-TDT-Lab-0.1.0
           path: O-TDT-Lab-0.1.0.apk
+      - name: Guardar la APK en la rama de pruebas
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add O-TDT-Lab-0.1.0.apk
+          git commit -m "APK de pruebas verificada"
+          git push origin HEAD:lab-tdt-5314
