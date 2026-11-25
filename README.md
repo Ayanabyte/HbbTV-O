@@ -1,11 +1,8 @@
-# HbbTV O!
+# O! TDT Lab 0.1.0
+Prueba independiente para la entrada TDT de los TCL Android TV 11 de 32 bits o con soporte ARM de 32 bits. Selecciona Antena 3, espera la imagen y pulsa azul. Menú vuelve al selector. Comprueba si puedes navegar por LOVEStv, volver al directo y abrirlo una segunda vez. El diagnóstico se puede guardar en Descargas desde la pantalla inicial.
 
-Aplicación independiente para Android TV. Sintoniza TDT con TvView y, cuando hay imagen, inicia el servidor HbbTV y el navegador instalados en el TCL. La compatibilidad depende de que el firmware permita iniciar esos componentes desde la aplicación.
+Si la lista está restringida, «Probar último canal» usa el último ID con vídeo o, en el primer arranque, 10032330, observado anteriormente en la TCL de prueba. El botón de ID manual permite usar otro canal de esa instalación sin volver a buscar canales.
 
-## Mando
+La actividad mantiene una sola TvView. Tras recibir vídeo abre el motor nativo con la identidad de esta app y monta el navegador sobre el reproductor. El firmware debe exponer y autorizar los servicios al paquete. La aceptación de una tecla o el arranque del motor por sí solos no certifican que el canal haya mostrado LOVEStv.
 
-- OK abre la lista de canales. CH+ y CH− cambian de canal.
-- Azul se envía al servicio HbbTV del canal actual. Las flechas y OK pasan al servicio durante la navegación.
-- Atrás se envía primero al servicio. Cuando este devuelve el control, la app conserva el canal y prepara otra sesión.
-
-El identificador de instalación es `com.ayanabyte.hbbtvo.live`. GitHub Actions compila la APK de depuración con Gradle. La prueba de aceptación en la TV consiste en abrir LOVEStv con azul, salir al mismo canal y abrirlo una segunda vez.
+Compilación: Linux, Android SDK 35, build-tools 35.0.0, JDK 17, clang, lld y zip. Ejecuta `bash build.sh` con ANDROID_HOME configurado. Para actualizar con una firma de prueba persistente utiliza LAB_KEYSTORE con la ruta de un almacén propio de pruebas (contraseña de desarrollo android). La compilación de CI crea una firma efímera.
