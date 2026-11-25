@@ -103,7 +103,7 @@ public final class Lab extends Activity {
         } catch(RuntimeException e){note("Lectura de canales: "+Engine.cause(e));}
         if(names.isEmpty()){status("Lista no disponible. Usa el último canal o introduce su ID.");return;}
         new AlertDialog.Builder(this).setTitle("Canales TDT").setItems(names.toArray(new String[0]),
-            (d,w)->tune(inputs.get(w),ids.get(w))).show();
+            (d,w)->{note("Canal seleccionado: "+names.get(w));tune(inputs.get(w),ids.get(w));}).show();
     }
     @Override public void onRequestPermissionsResult(int n,String[] p,int[] r){
         super.onRequestPermissionsResult(n,p,r);if(n==1)channels();

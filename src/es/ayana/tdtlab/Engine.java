@@ -11,7 +11,43 @@ final class Engine {
     final ViewGroup layer;
     final Handler ui = new Handler(android.os.Looper.getMainLooper());
     Object server, browser, listener;
+    private static Object registeredNotifier;
+    private static java.lang.ref.WeakReference<Engine> current=new java.lang.ref.WeakReference<>(null);
     boolean closed, running;
+
+    void subscribeToBroadcast() {
+        current=new java.lang.ref.WeakReference<>(this);
+        try {
+            Class<?> type=Class.forName("com.tcl.hbbtv.HbbtvEventNotify");
+            Object notifier=type.getMethod("getInstance",Context.class).invoke(null,host);
+            if(notifier!=registeredNotifier) {
+                Class<?> iface=Class.forName("com.tcl.hbbtv.HbbtvEventListener");
+                Object callback=Proxy.newProxyInstance(iface.getClassLoader(),new Class<?>[]{iface},Engine::broadcastEvent);
+                type.getMethod("registerHbbtvEventListener",iface).invoke(notifier,callback);
+                registeredNotifier=notifier;
+                registeredCallback=callback;
+            }
+            host.note("Suscripción a eventos HbbTV activa");
+        } catch(Exception | LinkageError e){host.note("Eventos HbbTV: "+cause(e));}
+    }
+    // Keep the callback alive even on firmware that retains only a weak reference.
+    private static Object registeredCallback;
+    private static Object broadcastEvent(Object proxy,Method method,Object[] args) {
+        String name=method.getName();
+        if(method.getDeclaringClass()==Object.class) {
+            if(name.equals("equals"))return proxy==args[0];
+            if(name.equals("hashCode"))return System.identityHashCode(proxy);
+            return "TdtBroadcastListener";
+        }
+        Engine session=current.get();
+        if(session!=null)session.ui.post(()->{
+            if(!session.closed)session.host.note("Evento HbbTV: "+name);
+        });
+        Class<?> result=method.getReturnType();
+        if(result==boolean.class)return false;
+        if(result.isPrimitive() && result!=void.class)return Array.get(Array.newInstance(result,1),0);
+        return null;
+    }
     Engine(Lab host, ViewGroup layer) { this.host=host; this.layer=layer; }
 
     Object instance(String cls) throws Exception {
@@ -43,6 +79,10 @@ final class Engine {
             } catch(android.content.pm.PackageManager.NameNotFoundException e) {
                 host.note("WebView TCL: el gestor de paquetes no encuentra com.tcl.android.webview");
             }
+            subscribeToBroadcast();
+            layer.setClipChildren(false);
+            layer.setClipToPadding(false);
+            layer.bringToFront();
             browser=instance("com.tcl.tbrowser.Tbrowser");
             Class<?> iface=Class.forName("com.tcl.tbrowser.TbrowserInitEventListener");
             listener=Proxy.newProxyInstance(iface.getClassLoader(),new Class<?>[]{iface},(p,m,a)->{
@@ -80,7 +120,9 @@ final class Engine {
         ui.removeCallbacksAndMessages(null);
         try {
             host.note("Tbrowser listo. HbbtvServer.start");
-            check(call(server,"start"));
+            Object result=call(server,"start");
+            host.note("HbbtvServer.start = "+result);
+            check(result);
             running=true;
             host.status("Motor HbbTV iniciado. Prueba el botón azul.");
         } catch(Exception | LinkageError e) { fail(cause(e)); }
@@ -111,7 +153,11 @@ final class Engine {
             Class<?> map=Class.forName("com.tcl.tvmanager.vo.TCLKeyMap$EnTCLKeyMap");
             int key=((Number)map.getMethod("getValue").invoke(map.getField("EN_TCL_KEY_"+name).get(null))).intValue();
             boolean handled=Boolean.TRUE.equals(server.getClass().getMethod("handleKey",int.class,int.class).invoke(server,key,0));
-            host.note("Tecla "+name+" aceptada="+handled);
+            host.note("Tecla "+name+" Android="+code+" TCL="+key+" aceptada="+handled);
+            if(code==KeyEvent.KEYCODE_PROG_BLUE){
+                try {host.note("Estado HbbTV: "+call(server,"getState"));}
+                catch(Exception | LinkageError e){host.note("Consulta de estado: "+cause(e));}
+            }
             return handled;
         } catch(Exception | LinkageError e) { host.status(cause(e)); return false; }
     }
