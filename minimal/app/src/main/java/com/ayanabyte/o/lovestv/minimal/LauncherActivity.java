@@ -36,19 +36,23 @@ public final class LauncherActivity extends Activity {
         TextView about=new TextView(this);
         about.setText("Diagnóstico diferencial: primero comprobar TDT sin HbbTV, después activar el motor TCL de la fuente 5.3.17.");
         about.setTextColor(0xffbbbbbb);about.setTextSize(16);about.setPadding(0,12,0,20);root.addView(about);
-        root.addView(button("1 · SOLO ANTENA 3 — SIN HbbTV",()->openTv(true)));
-        root.addView(button("2 · ANTENA 3 + LOVEStv 5.3.17",()->openTv(false)));
+        root.addView(button("1 · SOLO ANTENA 3 — SIN HbbTV",()->openTv(true,false)));
+        root.addView(button("2 · ANTENA 3 + superficie HbbTV, SIN TVSDK",()->openTv(false,true)));
+        root.addView(button("3 · ANTENA 3 + LOVEStv, CON TVSDK",()->openTv(false,false)));
         root.addView(button("GUARDAR DIAGNÓSTICO .TXT",this::save));
         root.addView(button("VER REGISTRO DEL MOTOR",()->new AlertDialog.Builder(this)
             .setTitle("Diagnóstico TCL").setMessage(diagnostic().substring(0,Math.min(10000,diagnostic().length())))
             .setPositiveButton("GUARDAR",(d,i)->save()).setNegativeButton("CERRAR",null).show()));
         status=new TextView(this);status.setTextColor(-1);status.setPadding(0,20,0,0);
-        status.setText("Primero abre SOLO TDT y espera 15 s. Si funciona, compara con TDT + LOVEStv. Guarda el TXT en ambos casos.");root.addView(status);
+        status.setText("Prueba la opción 2 durante 15 s SIN TVSDK; después la 3 CON TVSDK. Guarda el TXT incluso si vuelve al menú.");root.addView(status);
         setContentView(root);
     }
-    private void openTv(boolean tdtOnly){
+    private void openTv(boolean tdtOnly,boolean skipTvSdk){
+        getSharedPreferences("probe",MODE_PRIVATE).edit()
+            .putBoolean("skip_tvsdk",skipTvSdk).commit();
         Intent intent=new Intent(this,TvActivity.class);
         intent.putExtra("tdt_only",tdtOnly);
+        intent.putExtra("skip_tvsdk",skipTvSdk);
         startActivity(intent);
     }
     private Button button(String label,Runnable action){
@@ -80,7 +84,7 @@ public final class LauncherActivity extends Activity {
         }catch(Throwable e){return "No hay detalles de salida: "+e;}
     }
     private String diagnostic(){
-        return "O! LOVEStv MÍNIMO v0.0.3 · fuente 5.3.17\n"+
+        return "O! LOVEStv MÍNIMO v0.0.4 · fuente 5.3.17\n"+
             "Paquete="+getPackageName()+"\nUltima salida TCL="+exits()+
             "\n--- HBBTV ---\n"+read("o-minimal-hbbtv-runtime.log")+
             "\n--- TDT ---\n"+read("o-minimal-tdt.log");

@@ -23,3 +23,9 @@ El usuario ha probado ambos modos de 0.0.2. TDT solo: TvView.onVideoAvailable co
 De la clase original 5.3.17 `HbbTvPlayerView` se cambian únicamente las condiciones de **visibilidad de SurfaceView** y de **bindService**: no se inicia el servicio ni se crea la superficie remota hasta que la misma TvView confirme vídeo. Al llegar `onVideoAvailable`, se habilita la superficie y se conecta el Messenger/SurfaceControlViewHost sin un segundo TvView y sin pulsar AZUL. Añadidos registros precisos de fase. No hay cambios a las clases de LOVEStv, HbbtvServer y navegación del emisor.
 
 **Probar:** opción 1 SOLO TDT de control; opción 2 TDT+LOVEStv esperando vídeo. Enviar TXT incluso si vuelve a cerrar. El resultado de esta compilación no confirma funcionamiento en TCL.
+
+## 0.0.4 — diferenciar superficie HbbTV y registro TVSDK
+
+En 0.0.3, Antena 3 devolvió onVideoAvailable antes de enlazar el servicio, y el SurfaceControlViewHost se adjuntó con video=true. El proceso murió (SIGKILL, exit status 9) durante el comienzo de TVSDK, tras comprobar nombre de proceso, sin retorno de systemAuthorized. La causa sigue incierta.
+
+Se añade un experimento separado de **HbbTV SIN TVSDK**. En este modo se conserva la superficie remota del navegador y su protocolo Messenger, pero se detiene la inicialización antes de leer el firmware/autorización del fabricante y antes de ejecutar HbbtvServer.init. El experimento **CON TVSDK** añade trazas antes/después de cada fase: PackageManager, SHA256 de APK, extracción de autorización sin registrar el valor, carga de TTvFunctionManager, getInstance y systemAuthorized. La app Solo TDT sigue intacta. Enviar registros separados de ambos modos.

@@ -43,9 +43,10 @@ public final class TvActivity extends Activity {
         label.setText(tdtOnly
             ?"O! · SOLO TDT, SIN HbbTV · Esperando imagen · INFO diagnóstico"
             :"O! · Antena 3 + HbbTV · Esperando imagen · INFO diagnóstico");
-        Journal.log(this,"=== O! v0.0.3 NUEVA SESIÓN PID="+android.os.Process.myPid()
+        Journal.log(this,"=== O! v0.0.4 NUEVA SESIÓN PID="+android.os.Process.myPid()
             +" proceso="+android.app.Application.getProcessName()
-            +" modo="+(tdtOnly?"SOLO TDT":"TDT + HbbTV")+" ===");
+            +" modo="+(tdtOnly?"SOLO TDT":
+                getIntent().getBooleanExtra("skip_tvsdk",false)?"HbbTV sin TVSDK":"HbbTV con TVSDK")+" ===");
         if(player!=null)player.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or_,ob)->{
             if(selected!=null&&r>l&&b>t)sync();
         });
