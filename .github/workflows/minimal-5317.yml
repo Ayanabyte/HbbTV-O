@@ -72,15 +72,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp minimal/app/build/outputs/apk/debug/app-debug.apk O-LOVEStv-Minimo-5317-v0.0.4.apk
-          TAG="o-minimal-5317-v0.0.4"
-          FILE="O-LOVEStv-Minimo-5317-v0.0.4.apk"
+          cp minimal/app/build/outputs/apk/debug/app-debug.apk O-LOVEStv-Minimo-5317-v0.0.5.apk
+          TAG="o-minimal-5317-v0.0.5"
+          FILE="O-LOVEStv-Minimo-5317-v0.0.5.apk"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$FILE" O-LOVEStv-Minimo-5317-fuentes.zip --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" \
               --prerelease --target "$GITHUB_SHA" \
-              --title "O! LOVEStv — prueba mínima 0.0.4, distinguir SurfaceControlViewHost y TVSDK" \
+              --title "O! LOVEStv — mínimo 0.0.5, capa HbbTV invisible" \
               --notes "App mínima: una TDT, 5 clases HbbTV Messenger del código fuente 5.3.17, 3 adaptadores TCL O!, monitor de diagnóstico. No es el clon completo."
             gh release upload "$TAG" O-LOVEStv-Minimo-5317-fuentes.zip --repo "$GITHUB_REPOSITORY" --clobber
           fi
@@ -88,4 +88,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: O-LOVEStv-Minimo-APK
-          path: O-LOVEStv-Minimo-5317-v0.0.4.apk
+          path: O-LOVEStv-Minimo-5317-v0.0.5.apk

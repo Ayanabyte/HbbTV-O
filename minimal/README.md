@@ -29,3 +29,11 @@ De la clase original 5.3.17 `HbbTvPlayerView` se cambian únicamente las condici
 En 0.0.3, Antena 3 devolvió onVideoAvailable antes de enlazar el servicio, y el SurfaceControlViewHost se adjuntó con video=true. El proceso murió (SIGKILL, exit status 9) durante el comienzo de TVSDK, tras comprobar nombre de proceso, sin retorno de systemAuthorized. La causa sigue incierta.
 
 Se añade un experimento separado de **HbbTV SIN TVSDK**. En este modo se conserva la superficie remota del navegador y su protocolo Messenger, pero se detiene la inicialización antes de leer el firmware/autorización del fabricante y antes de ejecutar HbbtvServer.init. El experimento **CON TVSDK** añade trazas antes/después de cada fase: PackageManager, SHA256 de APK, extracción de autorización sin registrar el valor, carga de TTvFunctionManager, getInstance y systemAuthorized. La app Solo TDT sigue intacta. Enviar registros separados de ambos modos.
+
+## 0.0.5 — diagnosticar el vídeo negro por capa superpuesta
+
+El archivo 0.0.4 registra onVideoAvailable y SurfaceControlViewHost con video=true para ambos modos HbbTV, pero el usuario informa que no ve Antena 3. En HbbTvPlayerView, un SurfaceView TRANSLUCENT está configurado con ZOrderMediaOverlay(true) por encima de TvView y recibe un SurfacePackage remoto aun sin página HbbTV. En Android 11, una capa opaca puede ocultar el canal; no está probado que sea la única causa.
+
+Ahora se inicializa la superficie de HbbTV con alpha=0, manteniendo la conexión de Messenger sin suprimir el motor. Mediante INFO/MENU se puede alternar alpha entre 0 y 1 (no usar alpha fraccionario en Android 11), registrando el valor, surfaceReady, attached y started. De este modo se puede probar si la superficie es la causa de pantalla negra. El diagnóstico del registro TVSDK sigue intacto y la rama principal no se modifica.
+
+Prueba principal: opción 2 SIN TVSDK; comprobar si ahora se ve Antena 3. Abrir INFO, mostrar la capa, comprobar si oscurece el vídeo; volver a INFO y ocultarla. Después probar opción 3 si procede. Guardar TXT.

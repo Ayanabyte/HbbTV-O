@@ -3,11 +3,11 @@ android {
     namespace = "com.ayanabyte.o.lovestv.minimal"
     compileSdk = 34
     defaultConfig {
-        applicationId = "com.ayanabyte.o.lovestv.minimal5317v4"
+        applicationId = "com.ayanabyte.o.lovestv.minimal5317v5"
         minSdk = 30
         targetSdk = 30
-        versionCode = 4
-        versionName = "0.0.4"
+        versionCode = 5
+        versionName = "0.0.5"
         ndk { abiFilters += "armeabi-v7a" }
     }
     compileOptions {

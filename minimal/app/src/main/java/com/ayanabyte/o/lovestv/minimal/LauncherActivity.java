@@ -44,7 +44,7 @@ public final class LauncherActivity extends Activity {
             .setTitle("Diagnóstico TCL").setMessage(diagnostic().substring(0,Math.min(10000,diagnostic().length())))
             .setPositiveButton("GUARDAR",(d,i)->save()).setNegativeButton("CERRAR",null).show()));
         status=new TextView(this);status.setTextColor(-1);status.setPadding(0,20,0,0);
-        status.setText("Prueba la opción 2 durante 15 s SIN TVSDK; después la 3 CON TVSDK. Guarda el TXT incluso si vuelve al menú.");root.addView(status);
+        status.setText("Prueba 2 SIN TVSDK: ¿se ve Antena 3? Pulsa INFO para mostrar/ocultar la capa HbbTV, y guarda el diagnóstico.");root.addView(status);
         setContentView(root);
     }
     private void openTv(boolean tdtOnly,boolean skipTvSdk){
@@ -84,7 +84,7 @@ public final class LauncherActivity extends Activity {
         }catch(Throwable e){return "No hay detalles de salida: "+e;}
     }
     private String diagnostic(){
-        return "O! LOVEStv MÍNIMO v0.0.4 · fuente 5.3.17\n"+
+        return "O! LOVEStv MÍNIMO v0.0.5 · fuente 5.3.17\n"+
             "Paquete="+getPackageName()+"\nUltima salida TCL="+exits()+
             "\n--- HBBTV ---\n"+read("o-minimal-hbbtv-runtime.log")+
             "\n--- TDT ---\n"+read("o-minimal-tdt.log");

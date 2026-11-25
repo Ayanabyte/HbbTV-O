@@ -58,6 +58,33 @@ with zipfile.ZipFile(io.BytesIO(data)) as z:
                 '        if(activity!=null) Journal.log(activity,"HBBTV: enlazando servicio solo TRAS video=true, channel="+channelId);\n'
                 '        session=serial.incrementAndGet();',
                 "log delayed service binding")
+        if name=="HbbTvPlayerView.java":
+            # Keep SurfaceControlViewHost and Messenger attached, but make the
+            # entire HbbTV overlay invisible to the compositor until toggled.
+            # On Android 11 a full-screen SurfaceView media overlay can cover
+            # TvView before any broadcaster application is rendering.
+            s=patch(s,'            overlay.setZOrderMediaOverlay(true);',
+                '            overlay.setZOrderMediaOverlay(true); overlay.setAlpha(0f);',
+                "alpha 0 start on Android 11")
+            s=patch(s,'    private boolean enabled,ready,surfaceReady,attached,started,failed,released;',
+                '    private boolean enabled,ready,surfaceReady,attached,started,failed,released;\n'
+                '    private boolean overlayForTest;',
+                "overlay test state")
+            s=patch(s,'    public TvView getTvView() { return tvView; }',
+                '    public TvView getTvView() { return tvView; }\n'
+                '    public void setOverlayVisibleForTest(boolean visible) {\n'
+                '        overlayForTest=visible;\n'
+                '        if(overlay!=null) overlay.setAlpha(visible ? 1f : 0f);\n'
+                '        if(activity!=null)Journal.log(activity,"DIAG CAPA HBBTV: visible="+visible'
+                '+", alpha="+(overlay==null?"sin surface":overlay.getAlpha())'
+                '+", surfaceReady="+surfaceReady+", attached="+attached+", started="+started);\n'
+                '    }\n'
+                '    public boolean isOverlayVisibleForTest(){ return overlayForTest; }',
+                "test overlay visibility API")
+            s=patch(s,'                        try { overlay.setChildSurfacePackage(surface); }',
+                '                        try { overlay.setChildSurfacePackage(surface);'
+                ' if(activity!=null)Journal.log(activity,"DIAG CAPA: SurfacePackage adjunto; alpha="+overlay.getAlpha()+", videoReady="+ready); }',
+                "trace remote SurfacePackage")
         if name=="HbbTvRuntimeService.java":
             s=patch(s,"ExperimentalAuthorization.begin(this,authorized->main.post(()->{",
                 'if(getSharedPreferences("probe",MODE_PRIVATE).getBoolean("skip_tvsdk",false)){\n'

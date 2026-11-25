@@ -43,7 +43,7 @@ public final class TvActivity extends Activity {
         label.setText(tdtOnly
             ?"O! · SOLO TDT, SIN HbbTV · Esperando imagen · INFO diagnóstico"
             :"O! · Antena 3 + HbbTV · Esperando imagen · INFO diagnóstico");
-        Journal.log(this,"=== O! v0.0.4 NUEVA SESIÓN PID="+android.os.Process.myPid()
+        Journal.log(this,"=== O! v0.0.5 NUEVA SESIÓN PID="+android.os.Process.myPid()
             +" proceso="+android.app.Application.getProcessName()
             +" modo="+(tdtOnly?"SOLO TDT":
                 getIntent().getBooleanExtra("skip_tvsdk",false)?"HbbTV sin TVSDK":"HbbTV con TVSDK")+" ===");
@@ -135,11 +135,21 @@ public final class TvActivity extends Activity {
         if(!tdtOnly&&HbbTvPlayerView.dispatch(this,e))return true;
         if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0&&
            (e.getKeyCode()==KeyEvent.KEYCODE_INFO||e.getKeyCode()==KeyEvent.KEYCODE_MENU)){
-            new AlertDialog.Builder(this).setTitle("O! · Diagnóstico")
+            new AlertDialog.Builder(this).setTitle("O! · Diagnóstico de imagen")
                 .setMessage("Modo="+(tdtOnly?"SOLO TDT sin HbbTV":"TDT + LOVEStv")
-                    +"\nVídeo confirmado="+ready
-                    +"\nPulsa ATRÁS para volver al monitor y guardar el TXT.")
-                .setPositiveButton("OK",null).show();
+                    +"\nVídeo TDT confirmado="+ready
+                    +"\nCapa HbbTV visible="+(player!=null && player.isOverlayVisibleForTest())
+                    +"\n\nLa capa HbbTV comienza transparente. Cambia su visibilidad"
+                    +" para comprobar si tapa la imagen del canal.")
+                .setPositiveButton(tdtOnly?"CERRAR":"MOSTRAR / OCULTAR CAPA",(dialog,i)->{
+                    if(player!=null){
+                        player.setOverlayVisibleForTest(!player.isOverlayVisibleForTest());
+                        label.setVisibility(View.VISIBLE);
+                        label.setText("O! · Capa HbbTV "+(player.isOverlayVisibleForTest()?"VISIBLE":"TRANSPARENTE")
+                            +" · INFO para volver a cambiar");
+                    }
+                })
+                .setNegativeButton("CERRAR",null).show();
             return true;
         }
         return super.dispatchKeyEvent(e);
