@@ -40,6 +40,12 @@ jobs:
           gradle-version: "8.2.1"
       - name: Extract only five original HbbTV classes
         run: python3 minimal/tools/make_minimal_5317.py source5317 labassets
+      - name: Inspect startup in extracted 5.3.17 integration
+        run: |
+          echo '### HbbTvPlayerView.java ###'
+          nl -ba minimal/app/src/main/java/com/ayanabyte/o/lovestv/minimal/HbbTvPlayerView.java | head -n 320
+          echo '### RuntimeService start and binding methods ###'
+          grep -nE 'onBind|onCreate|initialize|register|attach|onStartCommand|ready|SURFACE|input|session|message|Messenger' minimal/app/src/main/java/com/ayanabyte/o/lovestv/minimal/HbbTvRuntimeService.java | head -n 135
       - name: Restore only two verified O! ARM32 bridges
         run: |
           python3 labassets/tools/restore_native.py
