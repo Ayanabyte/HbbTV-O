@@ -41,7 +41,10 @@ public final class MainActivity extends Activity {
     private boolean startRequested;
     private boolean serverInitialized;
     private String lastState = "";
-    private Object browser, server, common;
+    private Object browser, server, common, functions;
+    private boolean modeEnableRequested;
+    private int modeWaitTicks;
+    private long videoAvailableAt;
     private Object listener;
     private boolean browserReady, videoReady, started, tuning, resumed, initialized;
     private int generation, stateTicks;
@@ -69,7 +72,7 @@ public final class MainActivity extends Activity {
         FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(550,-2,android.view.Gravity.TOP|android.view.Gravity.START);
         root.addView(panel,pp);
         TextView title = new TextView(this);
-        title.setText("TCL · HbbTV nativo 0.3");
+        title.setText("TCL · HbbTV nativo 0.4");
         title.setTextSize(22);
         panel.addView(title);
         channel = new EditText(this);
@@ -93,6 +96,7 @@ public final class MainActivity extends Activity {
         tv.setCallback(new TvView.TvInputCallback() {
             @Override public void onVideoAvailable(String id) {
                 if (!input.equals(id)) return;
+                if(!videoReady) videoAvailableAt=android.os.SystemClock.elapsedRealtime();
                 videoReady = true;
                 note("TIF onVideoAvailable");
                 attemptStart(generation);
@@ -109,7 +113,7 @@ public final class MainActivity extends Activity {
                 tuning = false; videoReady = false; stopNative(); note("TIF onDisconnected "+id);
             }
         });
-        note("Versión 0.3: comprobación de TCLWebView e inicio nativo; paquete="+getPackageName()+" input="+input);
+        note("Versión 0.4: habilitación HbbTV mediante TVSDK y comprobación de modo; paquete="+getPackageName()+" input="+input);
         tune.requestFocus();
     }
 
@@ -161,6 +165,7 @@ public final class MainActivity extends Activity {
                 serverInitialized=true;
             }
             common=singleton("com.tcl.tvmanager.TTvCommonManager");
+            functions=singleton("com.tcl.tvmanager.TTvFunctionManager");
             note("Preparando Tbrowser original");
             browser=singleton("com.tcl.tbrowser.Tbrowser");
             Class<?> callback=type("com.tcl.tbrowser.TbrowserInitEventListener");
@@ -195,7 +200,7 @@ public final class MainActivity extends Activity {
     private void tuneChannel(long id) {
         if(id<0) throw new IllegalArgumentException("ID de canal inválido");
         generation++; stopNative();
-        tunedId=id; videoReady=false; tuning=true; stateTicks=0; lastSource=""; lastState=""; setApplicationReady(false);
+        tunedId=id; videoReady=false; tuning=true; stateTicks=0; lastSource=""; lastState=""; modeEnableRequested=false; modeWaitTicks=0; videoAvailableAt=0; setApplicationReady(false);
         boolean nativeOk=prepareNative();
         Uri uri=TvContract.buildChannelUri(id);
         note("TvView.tune "+uri+" nativePrepared="+nativeOk);
@@ -219,8 +224,26 @@ public final class MainActivity extends Activity {
                 if(stateTicks++<40) handler.postDelayed(()->attemptStart(g),500);
                 return;
             }
+            // Wait for a stable TIF video session, not just the source-switch notification.
+            long age=android.os.SystemClock.elapsedRealtime()-videoAvailableAt;
+            if(age<1800) { handler.postDelayed(()->attemptStart(g),1800-age); return; }
+            Object enabled=call0(functions,"isHbbtvOn");
+            if(!modeEnableRequested || Boolean.TRUE.equals(enabled)) note("TVSDK isHbbtvOn="+enabled);
+            if(Boolean.FALSE.equals(enabled)) {
+                if(!modeEnableRequested) {
+                    modeEnableRequested=true;
+                    // Standard TVSDK user-setting API. No factory flags or identity changes.
+                    call(functions,"setHbbtvOn",new Class<?>[]{boolean.class},true);
+                    note("TVSDK setHbbtvOn(true) solicitado; esperando confirmación");
+                }
+                if(modeWaitTicks++<6) { handler.postDelayed(()->attemptStart(g),500); return; }
+                note("TVSDK no confirma HbbTV activo después de setHbbtvOn(true); no se fuerza el servicio DVB.");
+                panel.setVisibility(View.VISIBLE);
+                return;
+            }
+            if(!Boolean.TRUE.equals(enabled)) { note("Resultado inesperado de isHbbtvOn: "+enabled); return; }
             startRequested=true;
-            note("Invocando HbbtvServer.start() con fuente DTV confirmada");
+            note("Invocando HbbtvServer.start() con fuente DTV estable y HbbTV habilitado");
             Object ret=call0(server,"start");
             note("HbbtvServer.start="+ret);
             if(ret instanceof Number && ((Number)ret).intValue()<0) { note("El motor ha rechazado start; no se habilita LOVEStv."); return; }
