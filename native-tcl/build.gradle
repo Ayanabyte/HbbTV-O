@@ -1,0 +1,13 @@
+plugins { id 'com.android.application' version '8.7.3' }
+android {
+    namespace 'es.ayana.tclnative'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'es.ayana.tclnative'
+        minSdk 30
+        targetSdk 30
+        versionCode 1
+        versionName '0.1-native'
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
