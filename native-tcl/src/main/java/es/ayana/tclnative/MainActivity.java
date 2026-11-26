@@ -36,9 +36,14 @@ public final class MainActivity extends Activity {
     private LinearLayout panel;
     private EditText channel;
     private TextView status;
+    private Button blue;
+    private boolean applicationReady;
+    private boolean startRequested;
+    private boolean serverInitialized;
+    private String lastState = "";
     private Object browser, server, common;
     private Object listener;
-    private boolean browserReady, videoReady, started, tuning, resumed, authorized, initialized;
+    private boolean browserReady, videoReady, started, tuning, resumed, initialized;
     private int generation, stateTicks;
     private String input;
     private String lastSource = "";
@@ -64,7 +69,7 @@ public final class MainActivity extends Activity {
         FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(550,-2,android.view.Gravity.TOP|android.view.Gravity.START);
         root.addView(panel,pp);
         TextView title = new TextView(this);
-        title.setText("TCL · HbbTV nativo");
+        title.setText("TCL · HbbTV nativo 0.2");
         title.setTextSize(22);
         panel.addView(title);
         channel = new EditText(this);
@@ -76,7 +81,8 @@ public final class MainActivity extends Activity {
             try { tuneChannel(Long.parseLong(channel.getText().toString())); }
             catch (Throwable e) { failure("Sintonizar",e); }
         });
-        button("Botón azul", () -> nativeKey(115,0));
+        blue = button("LOVEStv · esperando HbbTV", this::openBlue);
+        blue.setEnabled(false);
         button("Guardar diagnóstico en Download", this::exportJournal);
         button("Ocultar panel", () -> { panel.setVisibility(View.GONE); tv.requestFocus(); });
         status = new TextView(this);
@@ -103,7 +109,7 @@ public final class MainActivity extends Activity {
                 tuning = false; videoReady = false; stopNative(); note("TIF onDisconnected "+id);
             }
         });
-        note("Inicio: paquete="+getPackageName()+" input="+input);
+        note("Versión 0.2: inicio nativo independiente; paquete="+getPackageName()+" input="+input);
         tune.requestFocus();
     }
 
@@ -116,6 +122,7 @@ public final class MainActivity extends Activity {
         String line = new SimpleDateFormat("HH:mm:ss.SSS",Locale.ROOT).format(new Date())+" "+text;
         Log.i(TAG,line);
         journal.append(line).append('\n');
+        try (java.io.FileOutputStream out = openFileOutput("native-session.txt", Context.MODE_APPEND)) { out.write((line+"\n").getBytes(StandardCharsets.UTF_8)); } catch (Exception ignored) {}
         if(status!=null) status.setText(text);
     }
     private void failure(String operation,Throwable e) {
@@ -123,6 +130,7 @@ public final class MainActivity extends Activity {
         note(operation+" ERROR "+cause);
         Log.e(TAG,operation,cause);
         journal.append(Log.getStackTraceString(cause)).append('\n');
+        try (java.io.FileOutputStream out = openFileOutput("native-session.txt", Context.MODE_APPEND)) { out.write((Log.getStackTraceString(cause)+"\n").getBytes(StandardCharsets.UTF_8)); } catch (Exception ignored) {}
     }
     private Class<?> type(String name) throws Exception { return Class.forName(name,true,getClassLoader()); }
     private Object singleton(String name) throws Exception {
@@ -136,16 +144,22 @@ public final class MainActivity extends Activity {
     private boolean prepareNative() {
         if(initialized) return true;
         try {
-            // The authorization request uses this application's own identity, never another package's.
-            Object functions=singleton("com.tcl.tvmanager.TTvFunctionManager");
-            Object auth=call(functions,"systemAuthorized",new Class<?>[]{String.class},getPackageName());
-            authorized=Boolean.TRUE.equals(auth);
-            note("TVSDK systemAuthorized("+getPackageName()+")="+auth);
-            if(!authorized) { note("TVSDK no ha autorizado esta aplicación; no se inicia el motor."); return false; }
+            // TVRootApp logs the systemAuthorized result separately from HbbTV initialization.
+            // Its String parameter is not established as a package name. Do not use that
+            // unrelated probe as a substitute for the native APIs' own permission checks.
+            note("Inicializando HbbtvServer con la identidad real de esta app");
+            if (!serverInitialized) {
+                server=singleton("com.tcl.hbbtv.HbbtvServer");
+                note("Invocando HbbtvServer.init()");
+                Object init=call0(server,"init");
+                note("HbbtvServer.init="+init+" (resultado de la llamada, no prueba de sesión activa)");
+                if (init instanceof Number && ((Number)init).intValue()<0) {
+                    throw new IllegalStateException("HbbtvServer.init rechazado: "+init);
+                }
+                serverInitialized=true;
+            }
             common=singleton("com.tcl.tvmanager.TTvCommonManager");
-            server=singleton("com.tcl.hbbtv.HbbtvServer");
-            Object init=call0(server,"init");
-            note("HbbtvServer.init="+init);
+            note("Preparando Tbrowser original");
             browser=singleton("com.tcl.tbrowser.Tbrowser");
             Class<?> callback=type("com.tcl.tbrowser.TbrowserInitEventListener");
             listener=Proxy.newProxyInstance(callback.getClassLoader(),new Class<?>[]{callback},(p,m,a)->{
@@ -163,8 +177,9 @@ public final class MainActivity extends Activity {
                 return null;
             });
             call(browser,"setTbrowserInitEventListener",new Class<?>[]{callback},listener);
-            initialized=true;
+            browserReady=false;
             call(browser,"initTbrowser",new Class<?>[]{Context.class,ViewGroup.class,boolean.class},this,hbbtv,false);
+            initialized=true;
             note("Tbrowser.initTbrowser(singleProcess=false) invocado");
             return true;
         } catch(Throwable e) {
@@ -176,44 +191,64 @@ public final class MainActivity extends Activity {
     private void tuneChannel(long id) {
         if(id<0) throw new IllegalArgumentException("ID de canal inválido");
         generation++; stopNative();
-        tunedId=id; videoReady=false; tuning=true; stateTicks=0; lastSource="";
+        tunedId=id; videoReady=false; tuning=true; stateTicks=0; lastSource=""; lastState=""; setApplicationReady(false);
         boolean nativeOk=prepareNative();
         Uri uri=TvContract.buildChannelUri(id);
         note("TvView.tune "+uri+" nativePrepared="+nativeOk);
         tv.tune(input,uri);
-        panel.setVisibility(View.GONE); tv.requestFocus();
+        panel.setVisibility(View.VISIBLE);
         final int g=generation;
         handler.postDelayed(()->attemptStart(g),300);
         handler.postDelayed(()->{
-            if(g==generation && !started) { note("Sin inicio HbbTV tras 20s; revisar autorización, Tbrowser, TIF y fuente."); panel.setVisibility(View.VISIBLE); }
-        },20000);
+            if(g==generation && !applicationReady) { note("HbbTV aún no disponible: browser="+browserReady+", video="+videoReady+", startRequested="+startRequested+", state="+lastState); panel.setVisibility(View.VISIBLE); }
+        },30000);
     }
     private void attemptStart(int g) {
-        if(g!=generation || !resumed || !tuning || started || !initialized || !authorized) return;
+        if(g!=generation || !resumed || !tuning || startRequested || !initialized) return;
         if(!browserReady || !videoReady) return;
         try {
             Object source=call0(common,"getCurrentChangeFinishSource");
             String s=source instanceof Enum ? ((Enum<?>)source).name() : String.valueOf(source);
             if(!s.equals(lastSource)) { lastSource=s; note("TVSDK fuente finalizada="+s); }
             // Do not start on a non-DTV source. RT51A reports DTV only after source switch.
-            if(!s.toUpperCase(Locale.ROOT).contains("DTV")) {
+            if(!"EN_TCL_DTV".equals(s)) {
                 if(stateTicks++<40) handler.postDelayed(()->attemptStart(g),500);
                 return;
             }
+            startRequested=true;
+            note("Invocando HbbtvServer.start() con fuente DTV confirmada");
             Object ret=call0(server,"start");
-            started=ret instanceof Number && ((Number)ret).intValue()==0;
-            note("HbbtvServer.start="+ret+" (éxito provisional="+started+")");
+            note("HbbtvServer.start="+ret);
+            if(ret instanceof Number && ((Number)ret).intValue()<0) { note("El motor ha rechazado start; no se habilita LOVEStv."); return; }
+            started=true;
             observeState(g,0);
         } catch(Throwable e) { failure("Arranque HbbTV",e); }
     }
     private void observeState(int g,int count) {
-        if(g!=generation || !resumed || server==null || count>=15) return;
-        try { note("HbbtvServer.getState="+call0(server,"getState")); }
-        catch(Throwable e) { failure("getState",e); return; }
-        handler.postDelayed(()->observeState(g,count+1),1000);
+        if(g!=generation || !resumed || server==null || !started) return;
+        try {
+            Object state=call0(server,"getState");
+            String name=state instanceof Enum ? ((Enum<?>)state).name() : String.valueOf(state);
+            if(!name.equals(lastState)) { lastState=name; note("HbbtvServer.getState="+name); }
+            boolean available = "EN_TCL_HBBTV_ON_NO_VOD".equals(name) || "EN_TCL_HBBTV_ON_VOD".equals(name) || "EN_TCL_HBBTV_RED_BUTTON".equals(name);
+            if(available != applicationReady) {
+                setApplicationReady(available);
+                if(available) { note("HbbTV disponible en el canal. Ya se puede usar azul."); Toast.makeText(this,"HbbTV disponible · botón azul",Toast.LENGTH_LONG).show(); panel.setVisibility(View.GONE); tv.requestFocus(); }
+            }
+        } catch(Throwable e) { failure("getState",e); setApplicationReady(false); return; }
+        handler.postDelayed(()->observeState(g,count+1),applicationReady?2000:1000);
+    }
+    private void setApplicationReady(boolean ready) {
+        applicationReady=ready;
+        if(blue!=null) { blue.setEnabled(ready); blue.setText(ready?"Abrir LOVEStv":"LOVEStv · esperando HbbTV"); }
+    }
+    private void openBlue() {
+        if(!applicationReady) return;
+        panel.setVisibility(View.GONE);
+        if(!nativeKey(115,0)) { panel.setVisibility(View.VISIBLE); note("El motor no aceptó la tecla azul."); }
     }
     private boolean nativeKey(int code,int action) {
-        if(!started) { note("HbbTV no iniciado; tecla "+code+" no enviada"); return false; }
+        if(!applicationReady) { note("HbbTV no iniciado; tecla "+code+" no enviada"); return false; }
         try {
             Object result=call(server,"handleKey",new Class<?>[]{int.class,int.class},code,action);
             note("handleKey("+code+","+action+")="+result);
@@ -233,6 +268,7 @@ public final class MainActivity extends Activity {
         }
     }
     @Override public boolean dispatchKeyEvent(KeyEvent e) {
+        if(e.getKeyCode()==KeyEvent.KEYCODE_PROG_BLUE) { if(e.getAction()==KeyEvent.ACTION_DOWN) openBlue(); return true; }
         if(e.getKeyCode()==KeyEvent.KEYCODE_MENU && e.getAction()==KeyEvent.ACTION_DOWN) {
             panel.setVisibility(panel.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE);
             return true;
@@ -249,7 +285,7 @@ public final class MainActivity extends Activity {
             try { note("HbbtvServer.stop="+call0(server,"stop")); }
             catch(Throwable e) { failure("stop",e); }
         }
-        started=false;
+        started=false; startRequested=false; setApplicationReady(false);
     }
     @Override protected void onResume() { super.onResume(); resumed=true; }
     @Override protected void onPause() {
@@ -270,7 +306,7 @@ public final class MainActivity extends Activity {
             if(uri==null) throw new IllegalStateException("MediaStore no devolvió URI");
             try(OutputStream out=getContentResolver().openOutputStream(uri)) {
                 if(out==null) throw new IllegalStateException("No se pudo abrir el archivo");
-                out.write(journal.toString().getBytes(StandardCharsets.UTF_8));
+                try(java.io.InputStream in=openFileInput("native-session.txt")) { byte[] buf=new byte[8192]; int n; while((n=in.read(buf))!=-1)out.write(buf,0,n); } catch(java.io.FileNotFoundException absent) { out.write(journal.toString().getBytes(StandardCharsets.UTF_8)); }
             }
             v.clear();v.put(MediaStore.Downloads.IS_PENDING,0);getContentResolver().update(uri,v,null,null);
             note("Guardado en Download/"+name);
