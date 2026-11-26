@@ -1,0 +1,32 @@
+name: TCL Native Lab APK
+on:
+  push:
+    branches: [tcl-native-lab]
+    paths:
+      - 'native-tcl/**'
+      - '.github/workflows/tcl-native-lab.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Compile
+        working-directory: native-tcl
+        run: gradle --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TCL-Native-Lab-debug
+          path: native-tcl/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
