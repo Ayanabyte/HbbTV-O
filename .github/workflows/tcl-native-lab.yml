@@ -5,6 +5,11 @@ on:
     paths:
       - 'native-tcl/**'
       - '.github/workflows/tcl-native-lab.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'native-tcl/**'
+      - '.github/workflows/tcl-native-lab.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,10 +26,14 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Install SDK
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+        run: |
+          if [ ! -d "$ANDROID_HOME/platforms/android-35" ] || [ ! -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            yes | sdkmanager --licenses >/dev/null || true
+            sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          fi
       - name: Compile
         working-directory: native-tcl
-        run: gradle --no-daemon assembleDebug
+        run: gradle --no-daemon --stacktrace assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: TCL-Native-Lab-debug
