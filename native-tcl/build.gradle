@@ -6,8 +6,8 @@ android {
         applicationId 'es.ayana.tclnative'
         minSdk 30
         targetSdk 30
-        versionCode 1
-        versionName '0.1-native'
+        versionCode 2
+        versionName '0.2-native'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
