@@ -69,7 +69,7 @@ public final class MainActivity extends Activity {
         FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(550,-2,android.view.Gravity.TOP|android.view.Gravity.START);
         root.addView(panel,pp);
         TextView title = new TextView(this);
-        title.setText("TCL · HbbTV nativo 0.2");
+        title.setText("TCL · HbbTV nativo 0.3");
         title.setTextSize(22);
         panel.addView(title);
         channel = new EditText(this);
@@ -109,7 +109,7 @@ public final class MainActivity extends Activity {
                 tuning = false; videoReady = false; stopNative(); note("TIF onDisconnected "+id);
             }
         });
-        note("Versión 0.2: inicio nativo independiente; paquete="+getPackageName()+" input="+input);
+        note("Versión 0.3: comprobación de TCLWebView e inicio nativo; paquete="+getPackageName()+" input="+input);
         tune.requestFocus();
     }
 
@@ -147,6 +147,8 @@ public final class MainActivity extends Activity {
             // TVRootApp logs the systemAuthorized result separately from HbbTV initialization.
             // Its String parameter is not established as a package name. Do not use that
             // unrelated probe as a substitute for the native APIs' own permission checks.
+            android.content.pm.PackageInfo webview = getPackageManager().getPackageInfo("com.tcl.android.webview", 0);
+            note("TCLWebView visible: "+webview.packageName+" versión="+webview.versionName);
             note("Inicializando HbbtvServer con la identidad real de esta app");
             if (!serverInitialized) {
                 server=singleton("com.tcl.hbbtv.HbbtvServer");
@@ -169,6 +171,7 @@ public final class MainActivity extends Activity {
                     return "TclNativeLab callback";
                 }
                 if(m.getName().equals("onSuccess")) {
+                    Log.i(TAG,"Callback nativo Tbrowser.onSuccess recibido");
                     final boolean success=a!=null && a.length==1 && Boolean.TRUE.equals(a[0]);
                     handler.post(()->{ browserReady=success; note("Tbrowser.onSuccess="+success); attemptStart(generation); });
                 } else if(m.getName().equals("onFailure")) {
@@ -181,6 +184,7 @@ public final class MainActivity extends Activity {
             call(browser,"initTbrowser",new Class<?>[]{Context.class,ViewGroup.class,boolean.class},this,hbbtv,false);
             initialized=true;
             note("Tbrowser.initTbrowser(singleProcess=false) invocado");
+            handler.postDelayed(()->{ if(initialized && !browserReady) note("Tbrowser no ha devuelto onSuccess; TCLWebView sí fue localizado. Revisar log nativo."); },1500);
             return true;
         } catch(Throwable e) {
             initialized=false;
