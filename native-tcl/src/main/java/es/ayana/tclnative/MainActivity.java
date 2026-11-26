@@ -45,7 +45,10 @@ public final class MainActivity extends Activity {
     private boolean modeEnableRequested;
     private int modeWaitTicks;
     private long videoAvailableAt;
-    private Object listener;
+    private Object listener, eventNotify, eventListener;
+    private boolean sdkAuthorized;
+    private boolean registering;
+    private static final int PICK_SDK_LICENSE = 805;
     private boolean browserReady, videoReady, started, tuning, resumed, initialized;
     private int generation, stateTicks;
     private String input;
@@ -72,7 +75,7 @@ public final class MainActivity extends Activity {
         FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(550,-2,android.view.Gravity.TOP|android.view.Gravity.START);
         root.addView(panel,pp);
         TextView title = new TextView(this);
-        title.setText("TCL · HbbTV nativo 0.4");
+        title.setText("TCL · HbbTV nativo 0.5");
         title.setTextSize(22);
         panel.addView(title);
         channel = new EditText(this);
@@ -84,6 +87,7 @@ public final class MainActivity extends Activity {
             try { tuneChannel(Long.parseLong(channel.getText().toString())); }
             catch (Throwable e) { failure("Sintonizar",e); }
         });
+        button("Registrar licencia TVSDK", this::chooseSdkLicense);
         blue = button("LOVEStv · esperando HbbTV", this::openBlue);
         blue.setEnabled(false);
         button("Guardar diagnóstico en Download", this::exportJournal);
@@ -113,7 +117,7 @@ public final class MainActivity extends Activity {
                 tuning = false; videoReady = false; stopNative(); note("TIF onDisconnected "+id);
             }
         });
-        note("Versión 0.4: habilitación HbbTV mediante TVSDK y comprobación de modo; paquete="+getPackageName()+" input="+input);
+        note("Versión 0.5: registro TVSDK previo al inicio del motor; paquete="+getPackageName()+" input="+input);
         tune.requestFocus();
     }
 
@@ -145,12 +149,84 @@ public final class MainActivity extends Activity {
         return ret;
     }
     private Object call0(Object obj,String name) throws Exception { return call(obj,name,new Class<?>[0]); }
+    private void chooseSdkLicense() {
+        if(registering) return;
+        if(sdkAuthorized) { note("TVSDK ya está registrado en este proceso."); return; }
+        android.content.Intent pick=new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
+        pick.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+        pick.setType("*/*");
+        try { startActivityForResult(pick,PICK_SDK_LICENSE); }
+        catch(android.content.ActivityNotFoundException e) { note("No hay selector de archivos disponible."); }
+    }
+    @Override protected void onActivityResult(int request,int result,android.content.Intent data) {
+        super.onActivityResult(request,result,data);
+        if(request!=PICK_SDK_LICENSE || result!=RESULT_OK || data==null || data.getData()==null || registering) return;
+        final Uri uri=data.getData();
+        registering=true;
+        note("Solicitando registro TVSDK para el proceso actual; PID="+android.os.Process.myPid());
+        new Thread(()->{
+            boolean accepted=false;
+            try(java.io.InputStream in=getContentResolver().openInputStream(uri);
+                java.io.ByteArrayOutputStream buffer=new java.io.ByteArrayOutputStream()) {
+                if(in==null) throw new java.io.IOException("Archivo no disponible");
+                byte[] chunk=new byte[4096]; int n;
+                while((n=in.read(chunk))!=-1) {
+                    if(buffer.size()+n>65536) throw new java.io.IOException("Licencia demasiado grande");
+                    buffer.write(chunk,0,n);
+                }
+                String license=new String(buffer.toByteArray(),StandardCharsets.UTF_8).trim();
+                if(license.isEmpty()) throw new java.io.IOException("Licencia vacía");
+                Object manager=singleton("com.tcl.tvmanager.TTvFunctionManager");
+                Object ret=call(manager,"systemAuthorized",new Class<?>[]{String.class},license);
+                accepted=Boolean.TRUE.equals(ret);
+            } catch(Throwable error) {
+                // Never record exception text, credential content or the selected URI.
+                Log.w(TAG,"TVSDK registration exception type="+error.getClass().getSimpleName());
+            }
+            final boolean ok=accepted;
+            handler.post(()->{
+                registering=false; sdkAuthorized=ok;
+                note("TVSDK systemAuthorized="+ok+"; PID="+android.os.Process.myPid());
+                if(ok && resumed) {
+                    try { tuneChannel(Long.parseLong(channel.getText().toString())); }
+                    catch(Throwable e) { failure("Sintonizar tras registro",e); }
+                }
+            });
+        },"tvsdk-registration").start();
+    }
+    private void registerBroadcastEvents() {
+        if(eventListener!=null) return;
+        try {
+            Class<?> type=type("com.tcl.hbbtv.HbbtvEventNotify");
+            Class<?> iface=type("com.tcl.hbbtv.HbbtvEventListener");
+            Object notify=type.getMethod("getInstance",Context.class).invoke(null,this);
+            Object proxy=Proxy.newProxyInstance(iface.getClassLoader(),new Class<?>[]{iface},(p,m,a)->{
+                if(m.getDeclaringClass()==Object.class) {
+                    if(m.getName().equals("hashCode")) return System.identityHashCode(p);
+                    if(m.getName().equals("equals")) return p==a[0];
+                    return "Native broadcaster listener";
+                }
+                handler.post(()->note("HbbTV evento nativo: "+m.getName()));
+                Class<?> t=m.getReturnType();
+                if(t==boolean.class) return false;
+                if(t==byte.class) return (byte)0;
+                if(t==short.class) return (short)0;
+                if(t==int.class) return 0;
+                if(t==long.class) return 0L;
+                if(t==float.class) return 0f;
+                if(t==double.class) return 0d;
+                if(t==char.class) return (char)0;
+                return null;
+            });
+            type.getMethod("registerHbbtvEventListener",iface).invoke(notify,proxy);
+            eventNotify=notify; eventListener=proxy;
+            note("Eventos HbbTV nativos registrados.");
+        } catch(Throwable e) { failure("Registro de eventos HbbTV",e); }
+    }
     private boolean prepareNative() {
         if(initialized) return true;
+        if(!sdkAuthorized) { note("TVSDK pendiente de registro válido para este proceso. TDT disponible; HbbTV no iniciado."); return false; }
         try {
-            // TVRootApp logs the systemAuthorized result separately from HbbTV initialization.
-            // Its String parameter is not established as a package name. Do not use that
-            // unrelated probe as a substitute for the native APIs' own permission checks.
             android.content.pm.PackageInfo webview = getPackageManager().getPackageInfo("com.tcl.android.webview", 0);
             note("TCLWebView visible: "+webview.packageName+" versión="+webview.versionName);
             note("Inicializando HbbtvServer con la identidad real de esta app");
@@ -166,6 +242,7 @@ public final class MainActivity extends Activity {
             }
             common=singleton("com.tcl.tvmanager.TTvCommonManager");
             functions=singleton("com.tcl.tvmanager.TTvFunctionManager");
+            registerBroadcastEvents();
             note("Preparando Tbrowser original");
             browser=singleton("com.tcl.tbrowser.Tbrowser");
             Class<?> callback=type("com.tcl.tbrowser.TbrowserInitEventListener");
@@ -213,7 +290,7 @@ public final class MainActivity extends Activity {
         },30000);
     }
     private void attemptStart(int g) {
-        if(g!=generation || !resumed || !tuning || startRequested || !initialized) return;
+        if(g!=generation || !resumed || !tuning || startRequested || !initialized || !sdkAuthorized) return;
         if(!browserReady || !videoReady) return;
         try {
             Object source=call0(common,"getCurrentChangeFinishSource");
