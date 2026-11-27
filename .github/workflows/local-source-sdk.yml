@@ -1,4 +1,4 @@
-name: Android SDK tools for local source build
+name: Android rebuild tools
 on:
   push:
     branches: [build-uploaded-lovestv]
@@ -9,34 +9,36 @@ on:
 permissions:
   contents: read
 jobs:
-  sdk:
+  tools:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - name: Prepare Android compiler tools
-        shell: bash
+      - name: Fetch compiler dependencies
         run: |
           set -eu
-          sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          if [ ! -f "$sdk/platforms/android-35/android.jar" ] || [ ! -x "$sdk/build-tools/35.0.0/aapt2" ]; then
-            yes | sdkmanager --licenses >/dev/null || true
-            sdkmanager "platforms;android-35" "build-tools;35.0.0"
-          fi
-          mkdir -p sdk-platform sdk-build-tools/lib
-          cp "$sdk/platforms/android-35/android.jar" sdk-platform/
-          cp "$sdk/build-tools/35.0.0/aapt2" "$sdk/build-tools/35.0.0/zipalign" sdk-build-tools/
-          cp "$sdk/build-tools/35.0.0/lib/d8.jar" "$sdk/build-tools/35.0.0/lib/apksigner.jar" sdk-build-tools/lib/
-          if [ -d "$sdk/build-tools/35.0.0/lib64" ]; then cp -r "$sdk/build-tools/35.0.0/lib64" sdk-build-tools/; fi
+          mkdir -p tools/smali tools/wheels
+          python3 - <<'PY'
+          import pathlib, urllib.request
+          base='https://repo.maven.apache.org/maven2/'
+          deps={
+            'ecj.jar':'org/eclipse/jdt/ecj/3.33.0/ecj-3.33.0.jar',
+            'smali/baksmali.jar':'org/smali/baksmali/2.5.2/baksmali-2.5.2.jar',
+            'smali/smali.jar':'org/smali/smali/2.5.2/smali-2.5.2.jar',
+            'smali/dexlib2.jar':'org/smali/dexlib2/2.5.2/dexlib2-2.5.2.jar',
+            'smali/util.jar':'org/smali/util/2.5.2/util-2.5.2.jar',
+            'smali/guava.jar':'com/google/guava/guava/27.1-android/guava-27.1-android.jar',
+            'smali/jcommander.jar':'com/beust/jcommander/1.64/jcommander-1.64.jar',
+            'smali/antlr.jar':'org/antlr/antlr/3.5.2/antlr-3.5.2.jar',
+            'smali/antlr-runtime.jar':'org/antlr/antlr-runtime/3.5.2/antlr-runtime-3.5.2.jar',
+            'smali/stringtemplate.jar':'org/antlr/stringtemplate/3.2.1/stringtemplate-3.2.1.jar',
+            'smali/jsr305.jar':'com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2.jar',
+            'smali/failureaccess.jar':'com/google/guava/failureaccess/1.0.1/failureaccess-1.0.1.jar'
+          }
+          for dest,url in deps.items():
+              urllib.request.urlretrieve(base+url,pathlib.Path('tools')/dest)
+          PY
+          python3 -m pip download --no-deps -d tools/wheels androguard==4.1.3
       - uses: actions/upload-artifact@v4
         with:
-          name: android-platform-35
-          path: sdk-platform/
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        with:
-          name: android-build-tools-35
-          path: sdk-build-tools/
+          name: rebuild-tools
+          path: tools/
           if-no-files-found: error
