@@ -1,0 +1,42 @@
+name: Android SDK tools for local source build
+on:
+  push:
+    branches: [build-uploaded-lovestv]
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/local-source-sdk.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare Android compiler tools
+        shell: bash
+        run: |
+          set -eu
+          sdk="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          if [ ! -f "$sdk/platforms/android-35/android.jar" ] || [ ! -x "$sdk/build-tools/35.0.0/aapt2" ]; then
+            yes | sdkmanager --licenses >/dev/null || true
+            sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          fi
+          mkdir -p sdk-platform sdk-build-tools/lib
+          cp "$sdk/platforms/android-35/android.jar" sdk-platform/
+          cp "$sdk/build-tools/35.0.0/aapt2" "$sdk/build-tools/35.0.0/zipalign" sdk-build-tools/
+          cp "$sdk/build-tools/35.0.0/lib/d8.jar" "$sdk/build-tools/35.0.0/lib/apksigner.jar" sdk-build-tools/lib/
+          if [ -d "$sdk/build-tools/35.0.0/lib64" ]; then cp -r "$sdk/build-tools/35.0.0/lib64" sdk-build-tools/; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-platform-35
+          path: sdk-platform/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-build-tools-35
+          path: sdk-build-tools/
+          if-no-files-found: error
