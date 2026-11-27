@@ -1,0 +1,23 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.READ_TV_LISTINGS"/>
+    <uses-feature android:name="android.software.leanback" android:required="false"/>
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+    <queries>
+        <package android:name="com.tcl.android.webview"/>
+    </queries>
+    <application android:label="TCL Native Lab" android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false">
+        <uses-library android:name="com.tcl.tvmanager" android:required="true"/>
+        <uses-library android:name="com.tcl.hbbtv.HbbtvServer" android:required="true"/>
+        <uses-library android:name="com.tcl.tbrowser" android:required="true"/>
+        <uses-library android:name="tcl.webkit" android:required="true"/>
+        <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
