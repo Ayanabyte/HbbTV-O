@@ -48,6 +48,7 @@ public final class MainActivity extends Activity {
     private Object listener, eventNotify, eventListener;
     private boolean sdkAuthorized;
     private boolean registering;
+    private boolean nativePreparationAttempted;
     private static final int PICK_SDK_LICENSE = 805;
     private boolean browserReady, videoReady, started, tuning, resumed, initialized;
     private int generation, stateTicks;
@@ -103,6 +104,11 @@ public final class MainActivity extends Activity {
                 if(!videoReady) videoAvailableAt=android.os.SystemClock.elapsedRealtime();
                 videoReady = true;
                 note("TIF onVideoAvailable");
+                if(!sdkAuthorized) note("TDT disponible; HbbTV espera registro TVSDK válido.");
+                if (sdkAuthorized && resumed && tuning && !initialized && !nativePreparationAttempted) {
+                    nativePreparationAttempted=true;
+                    prepareNative();
+                }
                 attemptStart(generation);
             }
             @Override public void onVideoUnavailable(String id,int reason) {
@@ -226,6 +232,7 @@ public final class MainActivity extends Activity {
     private boolean prepareNative() {
         if(initialized) return true;
         if(!sdkAuthorized) { note("TVSDK pendiente de registro válido para este proceso. TDT disponible; HbbTV no iniciado."); return false; }
+        if(!videoReady) { note("Esperando vídeo TDT antes de inicializar HbbTV."); return false; }
         try {
             android.content.pm.PackageInfo webview = getPackageManager().getPackageInfo("com.tcl.android.webview", 0);
             note("TCLWebView visible: "+webview.packageName+" versión="+webview.versionName);
@@ -278,9 +285,9 @@ public final class MainActivity extends Activity {
         if(id<0) throw new IllegalArgumentException("ID de canal inválido");
         generation++; stopNative();
         tunedId=id; videoReady=false; tuning=true; stateTicks=0; lastSource=""; lastState=""; modeEnableRequested=false; modeWaitTicks=0; videoAvailableAt=0; setApplicationReady(false);
-        boolean nativeOk=prepareNative();
+        nativePreparationAttempted=false;
         Uri uri=TvContract.buildChannelUri(id);
-        note("TvView.tune "+uri+" nativePrepared="+nativeOk);
+        note("TvView.tune "+uri+"; HbbTV espera imagen TDT y registro TVSDK válido");
         tv.tune(input,uri);
         panel.setVisibility(View.VISIBLE);
         final int g=generation;
